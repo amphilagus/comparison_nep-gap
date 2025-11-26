@@ -1,0 +1,9 @@
+[project]
+name = "comparison-nep-gap"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "neptrainkit>=2.7.2",
+]

@@ -1,0 +1,65 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+dist/
+build/
+*.egg
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Virtual Environment
+.venv/
+venv/
+ENV/
+env/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Raw data and results
+run/raw_data/
+run/analysis/
+
+# Compiled binaries
+opt/
+
+# Source code (large external repos)
+src/
+
+# Log files
+*.log
+log.lammps
+
+# Temporary files
+*.tmp
+*.bak
+*.backup
+
+# Large data files
+*.xyz
+*.data
+*.dump
+*.restart
+
+# Compiled LAMMPS files
+*.o
+*.a
+lmp
+lmp_*
+
+# tabgap
+/forcefield/tabgap/
