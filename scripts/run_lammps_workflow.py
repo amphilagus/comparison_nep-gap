@@ -340,7 +340,7 @@ def run_lammps_wrapper(args_tuple):
 
 def main():
     parser = argparse.ArgumentParser(
-        description="LAMMPS计算完整工作流",
+        description="LAMMPS计算完整工作流（包含误差分析）",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 完整工作流包括：
@@ -349,37 +349,47 @@ def main():
   3. 链接力场文件
   4. 链接run.in脚本
   5. 批量运行LAMMPS计算
+  6. 误差分析（可选）
 
-示例用法:
-  # 基本用法（使用tabGAP势函数）
-  python scripts/run_lammps_workflow.py run_1/tabgap/raw_data train_dataset/train.xyz
+新的简化用法（推荐）:
+  # 使用测试名称自动管理路径
+  python scripts/run_lammps_workflow.py -n 2.3.1_npj2023 train_dataset/train.xyz --potential nep
+  # 这会自动创建：
+  #   - 原始数据: run/raw_data/2.3.1_npj2023
+  #   - 分析结果: run/analysis/2.3.1_npj2023
   
-  # 使用NEP势函数
-  python scripts/run_lammps_workflow.py run_1/nep/raw_data train_dataset/train.xyz --potential nep
+  # 运行后自动进行误差分析
+  python scripts/run_lammps_workflow.py -n tabgap_npj2023 train.xyz --potential tabgap --analyze
   
-  # 指定所有参数
-  python scripts/run_lammps_workflow.py output_dir train.xyz --potential tabgap --run-script scripts/run.in --forcefield forcefield/tabgap --lammps opt/lmp_nep_tabgap
+传统用法（兼容旧版）:
+  # 手动指定完整路径
+  python scripts/run_lammps_workflow.py run/raw_data/test1 train.xyz --potential nep
   
   # 只运行前10个任务（测试）
-  python scripts/run_lammps_workflow.py run_1/tabgap/raw_data train_dataset/train.xyz --max-jobs 10
+  python scripts/run_lammps_workflow.py -n test1 train.xyz --max-jobs 10
   
   # 跳过LAMMPS运行步骤（只准备文件）
-  python scripts/run_lammps_workflow.py run_1/tabgap/raw_data train_dataset/train.xyz --skip-run
-  
-  # 使用NEP并指定并行进程数
-  python scripts/run_lammps_workflow.py run_1/nep/raw_data train_dataset/train.xyz --potential nep --n-cores 8
+  python scripts/run_lammps_workflow.py -n test1 train.xyz --skip-run
         """
     )
     
     parser.add_argument(
-        "output_dir",
-        type=str,
-        help="输出文件夹路径"
-    )
-    parser.add_argument(
         "train_xyz",
         type=str,
         help="训练集xyz文件路径"
+    )
+    parser.add_argument(
+        "-n", "--name",
+        type=str,
+        default=None,
+        help="测试名称（自动管理路径，推荐使用）。例如：2.3.1_npj2023"
+    )
+    parser.add_argument(
+        "output_dir",
+        type=str,
+        nargs='?',
+        default=None,
+        help="输出文件夹路径（传统方式，可选）"
     )
     parser.add_argument(
         "--potential",
@@ -423,8 +433,34 @@ def main():
         default=None,
         help="并行运行的进程数（默认：CPU核心数）"
     )
+    parser.add_argument(
+        "--analyze",
+        action="store_true",
+        help="运行完成后自动进行误差分析"
+    )
+    parser.add_argument(
+        "-t", "--low-energy-threshold",
+        type=float,
+        default=3.0,
+        help="误差分析的低能量区间阈值（eV）（默认：3.0）"
+    )
     
     args = parser.parse_args()
+    
+    # 路径管理逻辑
+    if args.name:
+        # 使用新的简化方式
+        workspace_root = Path(__file__).parent.parent
+        raw_data_dir = workspace_root / "run" / "raw_data" / args.name
+        analysis_dir = workspace_root / "run" / "analysis" / args.name
+        output_dir = raw_data_dir
+    elif args.output_dir:
+        # 使用传统方式
+        output_dir = Path(args.output_dir)
+        analysis_dir = None
+    else:
+        print("错误：必须指定 --name 或 output_dir")
+        return 1
     
     # 根据势函数类型设置默认值
     if args.run_script is None:
@@ -445,17 +481,22 @@ def main():
         print(f"错误：训练集文件 {args.train_xyz} 不存在")
         return 1
     
-    output_dir = Path(args.output_dir)
-    
     print("=" * 80)
     print("LAMMPS计算完整工作流")
     print("=" * 80)
+    if args.name:
+        print(f"测试名称: {args.name}")
+        print(f"原始数据目录: {output_dir}")
+        print(f"分析结果目录: {analysis_dir}")
+    else:
+        print(f"输出目录: {output_dir}")
     print(f"势函数类型: {args.potential.upper()}")
-    print(f"输出目录: {output_dir}")
     print(f"训练集: {train_xyz_path}")
     print(f"Run脚本: {args.run_script}")
     print(f"力场目录: {args.forcefield}")
     print(f"LAMMPS: {args.lammps}")
+    if args.analyze:
+        print(f"误差分析: 启用（低能量阈值: {args.low_energy_threshold} eV）")
     print("=" * 80)
     
     start_time = datetime.now()
@@ -536,12 +577,55 @@ def main():
     else:
         print("\n[步骤 5/5] 跳过LAMMPS运行步骤")
     
+    # 步骤6: 误差分析（可选）
+    if args.analyze and not args.skip_run and analysis_dir:
+        print("\n[步骤 6/6] 运行误差分析...")
+        
+        try:
+            # 导入误差分析模块
+            import sys
+            sys.path.insert(0, str(Path(__file__).parent))
+            
+            # 构建分析命令
+            analysis_cmd = [
+                sys.executable,
+                str(Path(__file__).parent / "analyze_errors.py"),
+                str(output_dir),
+                "-o", str(analysis_dir),
+                "-t", str(args.low_energy_threshold)
+            ]
+            
+            print(f"  运行命令: {' '.join(analysis_cmd)}")
+            
+            result = subprocess.run(
+                analysis_cmd,
+                capture_output=True,
+                text=True
+            )
+            
+            if result.returncode == 0:
+                print("  ✓ 误差分析完成")
+                print(f"  分析结果保存在: {analysis_dir}")
+            else:
+                print(f"  ✗ 误差分析失败")
+                if result.stderr:
+                    print(f"  错误信息: {result.stderr}")
+        
+        except Exception as e:
+            print(f"  ✗ 误差分析出错: {str(e)}")
+    
     end_time = datetime.now()
     total_duration = (end_time - start_time).total_seconds()
     
     print("\n" + "=" * 80)
     print(f"工作流完成！总耗时: {total_duration:.1f}s ({total_duration/60:.1f}min)")
     print("=" * 80)
+    
+    if args.name:
+        print(f"\n结果位置:")
+        print(f"  原始数据: {output_dir}")
+        if args.analyze and analysis_dir:
+            print(f"  分析结果: {analysis_dir}")
     
     return 0
 

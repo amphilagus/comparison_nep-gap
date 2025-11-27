@@ -63,3 +63,6 @@ lmp_*
 
 # tabgap
 /forcefield/tabgap/
+
+# split
+/train_dataset/split_by_config_type/
