@@ -66,3 +66,6 @@ lmp_*
 
 # split
 /train_dataset/split_by_config_type/
+
+# vasp
+*.POSCAR

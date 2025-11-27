@@ -338,6 +338,40 @@ def run_lammps_wrapper(args_tuple):
     return index, dir_name, success, message
 
 
+def generate_test_name(train_xyz: str, forcefield: str) -> str:
+    """
+    根据训练集和力场自动生成测试名称
+    
+    规则：
+    - 训练集名称：从文件名提取（去掉.xyz后缀），如 nep2025.xyz -> nep2025
+    - 力场名称：
+      - NEP: 使用文件名（去掉.txt后缀），如 3.3.0.txt -> 3.3.0
+      - tabGAP: 使用 "tabgap"
+    - 最终格式：{力场名称}_{训练集名称}
+    
+    示例：
+    - train_dataset/nep_baseline/nep2025.xyz + forcefield/nep/3.3.0.txt -> 3.3.0_nep2025
+    - train_dataset/nep_baseline/npj2023.xyz + forcefield/tabgap -> tabgap_npj2023
+    """
+    # 提取训练集名称：使用文件名（去掉.xyz）
+    train_path = Path(train_xyz)
+    dataset_name = train_path.stem
+    
+    # 提取力场名称
+    ff_path = Path(forcefield)
+    if ff_path.is_file() and ff_path.suffix == '.txt':
+        # NEP势函数：使用文件名（去掉.txt）
+        ff_name = ff_path.stem
+    elif ff_path.is_dir() or ff_path.name == 'tabgap':
+        # tabGAP势函数
+        ff_name = 'tabgap'
+    else:
+        # 其他情况，使用文件/目录名
+        ff_name = ff_path.stem if ff_path.is_file() else ff_path.name
+    
+    return f"{ff_name}_{dataset_name}"
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="LAMMPS计算完整工作流（包含误差分析）",
@@ -351,25 +385,22 @@ def main():
   5. 批量运行LAMMPS计算
   6. 误差分析（可选）
 
-新的简化用法（推荐）:
-  # 使用测试名称自动管理路径
-  python scripts/run_lammps_workflow.py -n 2.3.1_npj2023 train_dataset/train.xyz --potential nep
-  # 这会自动创建：
-  #   - 原始数据: run/raw_data/2.3.1_npj2023
-  #   - 分析结果: run/analysis/2.3.1_npj2023
+简化用法（自动生成名称）:
+  # 使用 NEP 势函数（自动生成名称：3.3.0_nep2025）
+  python scripts/run_lammps_workflow.py train_dataset/nep_baseline/nep2025.xyz -f forcefield/nep/3.3.0.txt
+  
+  # 使用 tabGAP 势函数（自动生成名称：tabgap_nep2025）
+  python scripts/run_lammps_workflow.py train_dataset/nep_baseline/nep2025.xyz -f forcefield/tabgap
   
   # 运行后自动进行误差分析
-  python scripts/run_lammps_workflow.py -n tabgap_npj2023 train.xyz --potential tabgap --analyze
-  
-传统用法（兼容旧版）:
-  # 手动指定完整路径
-  python scripts/run_lammps_workflow.py run/raw_data/test1 train.xyz --potential nep
+  python scripts/run_lammps_workflow.py train_dataset/nep_baseline/npj2023.xyz -f forcefield/nep/2.3.1.txt --analyze
   
   # 只运行前10个任务（测试）
-  python scripts/run_lammps_workflow.py -n test1 train.xyz --max-jobs 10
+  python scripts/run_lammps_workflow.py train_dataset/nep_baseline/nep2025.xyz -f forcefield/nep/2.3.1.txt --max-jobs 10
   
-  # 跳过LAMMPS运行步骤（只准备文件）
-  python scripts/run_lammps_workflow.py -n test1 train.xyz --skip-run
+手动指定名称:
+  # 如果需要自定义名称，使用 -n 参数
+  python scripts/run_lammps_workflow.py train_dataset/nep_baseline/nep2025.xyz -n my_custom_name -f forcefield/nep/3.0.0.txt
         """
     )
     
@@ -382,33 +413,19 @@ def main():
         "-n", "--name",
         type=str,
         default=None,
-        help="测试名称（自动管理路径，推荐使用）。例如：2.3.1_npj2023"
+        help="测试名称（可选，不指定则自动生成）"
     )
     parser.add_argument(
-        "output_dir",
+        "-f", "--forcefield",
         type=str,
-        nargs='?',
-        default=None,
-        help="输出文件夹路径（传统方式，可选）"
-    )
-    parser.add_argument(
-        "--potential",
-        type=str,
-        choices=["tabgap", "nep"],
-        default="tabgap",
-        help="势函数类型（默认：tabgap）"
+        required=True,
+        help="力场文件或文件夹路径（.txt文件=NEP，文件夹=tabGAP）"
     )
     parser.add_argument(
         "--run-script",
         type=str,
         default=None,
         help="run.in脚本路径（默认：根据势函数类型自动选择）"
-    )
-    parser.add_argument(
-        "--forcefield",
-        type=str,
-        default=None,
-        help="力场文件夹路径（默认：根据势函数类型自动选择）"
     )
     parser.add_argument(
         "--lammps",
@@ -441,39 +458,42 @@ def main():
     parser.add_argument(
         "-t", "--low-energy-threshold",
         type=float,
-        default=3.0,
+        default=0.5,
         help="误差分析的低能量区间阈值（eV）（默认：3.0）"
     )
     
     args = parser.parse_args()
     
-    # 路径管理逻辑
-    if args.name:
-        # 使用新的简化方式
-        workspace_root = Path(__file__).parent.parent
-        raw_data_dir = workspace_root / "run" / "raw_data" / args.name
-        analysis_dir = workspace_root / "run" / "analysis" / args.name
-        output_dir = raw_data_dir
-    elif args.output_dir:
-        # 使用传统方式
-        output_dir = Path(args.output_dir)
-        analysis_dir = None
+    # 自动检测势函数类型
+    ff_path = Path(args.forcefield)
+    if ff_path.is_file() and ff_path.suffix == '.txt':
+        potential_type = "nep"
+    elif ff_path.is_dir():
+        potential_type = "tabgap"
     else:
-        print("错误：必须指定 --name 或 output_dir")
-        return 1
+        print(f"警告：无法识别力场类型，默认使用 tabgap")
+        potential_type = "tabgap"
+    
+    # 路径管理逻辑
+    workspace_root = Path(__file__).parent.parent
+    
+    # 如果没有指定名称，自动生成
+    if args.name is None:
+        test_name = generate_test_name(args.train_xyz, args.forcefield)
+        print(f"自动生成测试名称: {test_name}")
+    else:
+        test_name = args.name
+    
+    raw_data_dir = workspace_root / "run" / "raw_data" / test_name
+    analysis_dir = workspace_root / "run" / "analysis" / test_name
+    output_dir = raw_data_dir
     
     # 根据势函数类型设置默认值
     if args.run_script is None:
-        if args.potential == "nep":
+        if potential_type == "nep":
             args.run_script = "scripts/run_nep.in"
         else:  # tabgap
             args.run_script = "scripts/run_gap.in"
-    
-    if args.forcefield is None:
-        if args.potential == "nep":
-            args.forcefield = "forcefield/nep"
-        else:  # tabgap
-            args.forcefield = "forcefield/tabgap"
     
     # 检查输入文件
     train_xyz_path = Path(args.train_xyz)
@@ -484,16 +504,16 @@ def main():
     print("=" * 80)
     print("LAMMPS计算完整工作流")
     print("=" * 80)
-    if args.name:
-        print(f"测试名称: {args.name}")
+    print(f"测试名称: {test_name}")
+    if analysis_dir:
         print(f"原始数据目录: {output_dir}")
         print(f"分析结果目录: {analysis_dir}")
     else:
         print(f"输出目录: {output_dir}")
-    print(f"势函数类型: {args.potential.upper()}")
+    print(f"势函数类型: {potential_type.upper()}")
     print(f"训练集: {train_xyz_path}")
     print(f"Run脚本: {args.run_script}")
-    print(f"力场目录: {args.forcefield}")
+    print(f"力场: {args.forcefield}")
     print(f"LAMMPS: {args.lammps}")
     if args.analyze:
         print(f"误差分析: 启用（低能量阈值: {args.low_energy_threshold} eV）")
@@ -516,7 +536,7 @@ def main():
     
     # 步骤3: 链接力场文件
     print("\n[步骤 3/5] 链接力场文件...")
-    ff_count = create_symlinks_forcefield(args.forcefield, str(output_dir), args.potential)
+    ff_count = create_symlinks_forcefield(args.forcefield, str(output_dir), potential_type)
     print(f"  ✓ 创建 {ff_count} 个力场文件软连接")
     
     # 步骤4: 链接run.in脚本
@@ -621,11 +641,10 @@ def main():
     print(f"工作流完成！总耗时: {total_duration:.1f}s ({total_duration/60:.1f}min)")
     print("=" * 80)
     
-    if args.name:
-        print(f"\n结果位置:")
-        print(f"  原始数据: {output_dir}")
-        if args.analyze and analysis_dir:
-            print(f"  分析结果: {analysis_dir}")
+    print(f"\n结果位置:")
+    print(f"  原始数据: {output_dir}")
+    if args.analyze and analysis_dir:
+        print(f"  分析结果: {analysis_dir}")
     
     return 0
 
