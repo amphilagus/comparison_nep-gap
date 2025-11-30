@@ -386,14 +386,17 @@ def main():
   6. 误差分析（可选）
 
 简化用法（自动生成名称）:
-  # 使用 NEP 势函数（自动生成名称：3.3.0_nep2025）
+  # 使用 NEP 势函数（自动生成名称：3.3.0_nep2025，默认完整分析）
   python scripts/run_lammps_workflow.py train_dataset/nep_baseline/nep2025.xyz -f forcefield/nep/3.3.0.txt
   
   # 使用 tabGAP 势函数（自动生成名称：tabgap_nep2025）
   python scripts/run_lammps_workflow.py train_dataset/nep_baseline/nep2025.xyz -f forcefield/tabgap
   
-  # 运行后自动进行误差分析
-  python scripts/run_lammps_workflow.py train_dataset/nep_baseline/npj2023.xyz -f forcefield/nep/2.3.1.txt --analyze
+  # 使用简化分析模式（只做全部训练集分析）
+  python scripts/run_lammps_workflow.py train_dataset/nep_baseline/nep2025.xyz -f forcefield/nep/2.3.1.txt --simple
+  
+  # 跳过误差分析
+  python scripts/run_lammps_workflow.py train_dataset/nep_baseline/nep2025.xyz -f forcefield/nep/2.3.1.txt --skip-analysis
   
   # 只运行前10个任务（测试）
   python scripts/run_lammps_workflow.py train_dataset/nep_baseline/nep2025.xyz -f forcefield/nep/2.3.1.txt --max-jobs 10
@@ -451,15 +454,20 @@ def main():
         help="并行运行的进程数（默认：CPU核心数）"
     )
     parser.add_argument(
-        "--analyze",
+        "--skip-analysis",
         action="store_true",
-        help="运行完成后自动进行误差分析"
+        help="跳过误差分析步骤（默认会自动进行误差分析）"
+    )
+    parser.add_argument(
+        "--simple",
+        action="store_true",
+        help="简化分析模式：只做全部训练集分析，不做低能和指定组分析"
     )
     parser.add_argument(
         "-t", "--low-energy-threshold",
         type=float,
         default=0.5,
-        help="误差分析的低能量区间阈值（eV）（默认：3.0）"
+        help="误差分析的低能量区间阈值（eV）（默认：0.5，仅在非简化模式下使用）"
     )
     
     args = parser.parse_args()
@@ -515,8 +523,13 @@ def main():
     print(f"Run脚本: {args.run_script}")
     print(f"力场: {args.forcefield}")
     print(f"LAMMPS: {args.lammps}")
-    if args.analyze:
-        print(f"误差分析: 启用（低能量阈值: {args.low_energy_threshold} eV）")
+    if not args.skip_analysis:
+        if args.simple:
+            print(f"误差分析: 启用（简化模式）")
+        else:
+            print(f"误差分析: 启用（完整模式，低能量阈值: {args.low_energy_threshold} eV）")
+    else:
+        print(f"误差分析: 跳过")
     print("=" * 80)
     
     start_time = datetime.now()
@@ -597,8 +610,8 @@ def main():
     else:
         print("\n[步骤 5/5] 跳过LAMMPS运行步骤")
     
-    # 步骤6: 误差分析（可选）
-    if args.analyze and not args.skip_run and analysis_dir:
+    # 步骤6: 误差分析（默认开启）
+    if not args.skip_analysis and not args.skip_run and analysis_dir:
         print("\n[步骤 6/6] 运行误差分析...")
         
         try:
@@ -612,8 +625,16 @@ def main():
                 str(Path(__file__).parent / "analyze_errors.py"),
                 str(output_dir),
                 "-o", str(analysis_dir),
-                "-t", str(args.low_energy_threshold)
             ]
+            
+            # 简化模式：只做全部训练集分析
+            if args.simple:
+                analysis_cmd.append("--simple")
+                print("  使用简化分析模式（仅全部训练集分析）")
+            else:
+                # 完整模式：包含低能和指定组分析
+                analysis_cmd.extend(["-t", str(args.low_energy_threshold)])
+                print(f"  使用完整分析模式（低能量阈值: {args.low_energy_threshold} eV）")
             
             print(f"  运行命令: {' '.join(analysis_cmd)}")
             
@@ -643,7 +664,7 @@ def main():
     
     print(f"\n结果位置:")
     print(f"  原始数据: {output_dir}")
-    if args.analyze and analysis_dir:
+    if not args.skip_analysis and analysis_dir:
         print(f"  分析结果: {analysis_dir}")
     
     return 0

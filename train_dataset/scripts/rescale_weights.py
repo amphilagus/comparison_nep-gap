@@ -7,6 +7,8 @@
 
 import sys
 import re
+import matplotlib.pyplot as plt
+import numpy as np
 
 
 def parse_xyz_file(filename):
@@ -31,6 +33,10 @@ def parse_xyz_file(filename):
         energy_match = re.search(r'[Ee]nergy=([-+]?[0-9]*\.?[0-9]+(?:[eE][-+]?[0-9]+)?)', config_line)
         weight_match = re.search(r'[Ww]eight=([-+]?[0-9]*\.?[0-9]+(?:[eE][-+]?[0-9]+)?)', config_line)
         
+        # 提取config_type（不区分大小写）
+        config_type_match = re.search(r'[Cc]onfig_[Tt]ype=(\S+)', config_line)
+        config_type = config_type_match.group(1) if config_type_match else 'unknown'
+        
         if energy_match and weight_match:
             energy = float(energy_match.group(1))
             weight = float(weight_match.group(1))
@@ -45,7 +51,8 @@ def parse_xyz_file(filename):
                 'atom_lines': lines[i + 2:i + 2 + n_atoms],
                 'energy': energy,
                 'weight': weight,
-                'avg_energy': avg_energy
+                'avg_energy': avg_energy,
+                'config_type': config_type
             }
             structures.append(structure)
         
@@ -104,6 +111,70 @@ def write_rescaled_xyz(structures, output_filename):
     print(f"已写入rescale后的文件: {output_filename}")
 
 
+def plot_rescale_analysis(structures, output_filename, alpha):
+    """绘制权重缩放分析图"""
+    # 提取数据
+    energies = [s['avg_energy'] for s in structures]
+    rescale_factors = [s['rescale_factor'] for s in structures]
+    config_types = [s['config_type'] for s in structures]
+    
+    # 获取所有唯一的config_type并排序
+    unique_config_types = sorted(list(set(config_types)))
+    config_type_to_idx = {ct: idx for idx, ct in enumerate(unique_config_types)}
+    
+    # 创建颜色映射
+    colors = plt.cm.tab10(np.linspace(0, 1, len(unique_config_types)))
+    color_map = {ct: colors[i] for i, ct in enumerate(unique_config_types)}
+    
+    # 创建图形
+    fig, ax1 = plt.subplots(figsize=(12, 6))
+    
+    # 左侧y轴：权重缩放系数
+    ax1.set_xlabel('Average Energy (eV/atom)', fontsize=12)
+    ax1.set_ylabel('Rescale Factor', fontsize=12, color='black')
+    
+    # 绘制理论曲线（rescale factor vs energy）
+    min_energy = min(energies)
+    max_energy = max(energies)
+    energy_range = np.linspace(min_energy, max_energy, 500)
+    rescale_curve = 1.0 / (1.0 + (energy_range - min_energy) ** alpha)
+    ax1.plot(energy_range, rescale_curve, 'k-', linewidth=2, zorder=1)
+    
+    # 设置左侧y轴为对数轴
+    ax1.set_yscale('log')
+    ax1.tick_params(axis='y', labelcolor='black')
+    ax1.grid(True, alpha=0.3)
+    
+    # 右侧twin y轴：config_type索引
+    ax2 = ax1.twinx()
+    ax2.set_ylabel('Config Type', fontsize=12, color='gray')
+    
+    # 在右侧y轴上绘制config_type散点（使用相同的颜色）
+    for ct in unique_config_types:
+        mask = [config_types[i] == ct for i in range(len(config_types))]
+        e_filtered = [energies[i] for i in range(len(energies)) if mask[i]]
+        ct_idx = config_type_to_idx[ct]
+        ct_indices = [ct_idx] * len(e_filtered)
+        ax2.scatter(e_filtered, ct_indices, c=[color_map[ct]], alpha=0.6, s=30, zorder=2)
+    
+    ax2.set_yticks(range(len(unique_config_types)))
+    ax2.set_yticklabels(unique_config_types, fontsize=9)
+    ax2.tick_params(axis='y', labelcolor='gray')
+    
+    # 添加标题
+    plt.title(f'Weight Rescale Factor vs Energy by Config Type (α={alpha})', fontsize=14, pad=20)
+    
+    # 调整布局
+    plt.tight_layout()
+    
+    # 保存图形
+    plot_filename = output_filename.replace('.xyz', '.png')
+    plt.savefig(plot_filename, dpi=300, bbox_inches='tight')
+    print(f"已保存分析图: {plot_filename}")
+    
+    plt.close()
+
+
 def main():
     if len(sys.argv) != 3:
         print("用法: python rescale_weights.py <xyz_file> <alpha>")
@@ -133,6 +204,11 @@ def main():
     
     # 写入新文件
     write_rescaled_xyz(structures, output_file)
+    
+    # 绘制分析图
+    print()
+    print("正在生成分析图...")
+    plot_rescale_analysis(structures, output_file, alpha)
     
     # 打印统计信息
     print()

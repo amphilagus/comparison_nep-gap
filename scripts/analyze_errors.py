@@ -184,14 +184,18 @@ def collect_data(root_dir: str) -> Tuple[Dict, Dict, List]:
         'energy': [],
         'forces': [],
         'virial': [],
-        'config_types': []  # 存储每个结构的 config_type
+        'config_types': [],  # 存储每个结构的 config_type
+        'force_structure_indices': [],  # 存储每个力分量对应的结构索引
+        'virial_structure_indices': []  # 存储每个virial分量对应的结构索引
     }
     
     lammps_data = {
         'energy': [],
         'forces': [],
         'virial': [],
-        'config_types': []
+        'config_types': [],
+        'force_structure_indices': [],
+        'virial_structure_indices': []
     }
     
     energy_details = []  # 存储详细的能量误差信息
@@ -201,6 +205,7 @@ def collect_data(root_dir: str) -> Tuple[Dict, Dict, List]:
     print(f"正在收集数据...")
     success_count = 0
     fail_count = 0
+    structure_index = 0  # 结构索引计数器
     
     for subdir in subdirs:
         xyz_file = subdir / "structure.xyz"
@@ -252,14 +257,23 @@ def collect_data(root_dir: str) -> Tuple[Dict, Dict, List]:
                 ))
             
             if dft_props['forces'] is not None and len(lammps_forces) > 0:
-                dft_data['forces'].append(dft_props['forces'].flatten())
-                lammps_data['forces'].append(lammps_forces.flatten())
+                dft_forces_flat = dft_props['forces'].flatten()
+                lammps_forces_flat = lammps_forces.flatten()
+                dft_data['forces'].append(dft_forces_flat)
+                lammps_data['forces'].append(lammps_forces_flat)
+                # 为每个力分量记录对应的结构索引
+                dft_data['force_structure_indices'].extend([structure_index] * len(dft_forces_flat))
+                lammps_data['force_structure_indices'].extend([structure_index] * len(lammps_forces_flat))
             
             if dft_props['virial_per_atom'] is not None and lammps_virial is not None:
                 dft_data['virial'].append(dft_props['virial_per_atom'])
                 lammps_data['virial'].append(lammps_virial)
+                # 为每个virial分量记录对应的结构索引
+                dft_data['virial_structure_indices'].extend([structure_index] * len(dft_props['virial_per_atom']))
+                lammps_data['virial_structure_indices'].extend([structure_index] * len(lammps_virial))
             
             success_count += 1
+            structure_index += 1  # 递增结构索引
             
         except Exception as e:
             print(f"  警告: {subdir.name} 处理失败 - {str(e)}")
@@ -276,16 +290,24 @@ def collect_data(root_dir: str) -> Tuple[Dict, Dict, List]:
     if dft_data['forces']:
         dft_data['forces'] = np.concatenate(dft_data['forces'])
         lammps_data['forces'] = np.concatenate(lammps_data['forces'])
+        dft_data['force_structure_indices'] = np.array(dft_data['force_structure_indices'])
+        lammps_data['force_structure_indices'] = np.array(lammps_data['force_structure_indices'])
     else:
         dft_data['forces'] = np.array([])
         lammps_data['forces'] = np.array([])
+        dft_data['force_structure_indices'] = np.array([])
+        lammps_data['force_structure_indices'] = np.array([])
     
     if dft_data['virial']:
         dft_data['virial'] = np.array(dft_data['virial']).flatten()
         lammps_data['virial'] = np.array(lammps_data['virial']).flatten()
+        dft_data['virial_structure_indices'] = np.array(dft_data['virial_structure_indices'])
+        lammps_data['virial_structure_indices'] = np.array(lammps_data['virial_structure_indices'])
     else:
         dft_data['virial'] = np.array([])
         lammps_data['virial'] = np.array([])
+        dft_data['virial_structure_indices'] = np.array([])
+        lammps_data['virial_structure_indices'] = np.array([])
     
     return dft_data, lammps_data, energy_details
 
@@ -298,7 +320,7 @@ def calculate_r2(true, pred):
 
 
 def plot_phase_comparison(dft_data: Dict, lammps_data: Dict, output_file: str, dataset_name: str = ''):
-    """绘制按相分类的对比图"""
+    """绘制按相分类的对比图（包括能量、力、位力）"""
     # 定义相的分类和颜色
     phase_config = {
         'beta': {
@@ -321,72 +343,190 @@ def plot_phase_comparison(dft_data: Dict, lammps_data: Dict, output_file: str, d
         }
     }
     
-    fig, ax = plt.subplots(1, 1, figsize=(10, 10))
+    # 创建2x2子图布局
+    fig, axs = plt.subplots(2, 2, figsize=(14, 12))
     
     if dataset_name:
-        main_title = f'Energy Comparison by Phase - {dataset_name} (Low Energy Region)'
+        main_title = f'DFT vs LAMMPS by Phase - {dataset_name} (Low Energy Region)'
     else:
-        main_title = 'Energy Comparison by Phase (Low Energy Region)'
+        main_title = 'DFT vs LAMMPS by Phase (Low Energy Region)'
     
     fig.suptitle(main_title, fontsize=16, fontweight='bold')
     
-    # 按相分类绘制
-    legend_elements = []
-    all_dft = []
-    all_lammps = []
+    # 1. 能量子图（左上）
+    print("\n能量分析（按相分类）:")
+    all_energy_dft = []
+    all_energy_lammps = []
     
     for phase_key, phase_info in phase_config.items():
-        # 筛选该相的数据
         mask = np.isin(dft_data['config_types'], phase_info['config_types'])
         
-        if np.sum(mask) > 0:
+        if np.sum(mask) > 0 and len(dft_data['energy']) > 0:
             phase_dft = dft_data['energy'][mask]
             phase_lammps = lammps_data['energy'][mask]
             
-            all_dft.extend(phase_dft)
-            all_lammps.extend(phase_lammps)
+            all_energy_dft.extend(phase_dft)
+            all_energy_lammps.extend(phase_lammps)
             
-            # 绘制散点
-            ax.scatter(phase_dft, phase_lammps, 
-                      alpha=0.6, s=30, 
-                      color=phase_info['color'],
-                      marker=phase_info['marker'],
-                      edgecolor='none',
-                      label=f"{phase_info['name']} (n={len(phase_dft)})")
+            axs[0, 0].scatter(phase_dft, phase_lammps, 
+                            alpha=0.6, s=30, 
+                            color=phase_info['color'],
+                            marker=phase_info['marker'],
+                            edgecolor='none',
+                            label=f"{phase_info['name']} (n={len(phase_dft)})")
             
-            # 计算该相的统计信息
             rmse = np.sqrt(np.mean((phase_lammps - phase_dft)**2))
             mae = np.mean(np.abs(phase_lammps - phase_dft))
-            
             print(f"  {phase_info['name']}: n={len(phase_dft)}, RMSE={rmse:.4f}, MAE={mae:.4f}")
     
-    # 绘制对角线
-    if all_dft:
-        all_dft = np.array(all_dft)
-        all_lammps = np.array(all_lammps)
-        min_val = min(all_dft.min(), all_lammps.min())
-        max_val = max(all_dft.max(), all_lammps.max())
-        ax.plot([min_val, max_val], [min_val, max_val], 
-               color='red', linewidth=1.5, linestyle='--', label='Perfect prediction')
+    if all_energy_dft:
+        all_energy_dft = np.array(all_energy_dft)
+        all_energy_lammps = np.array(all_energy_lammps)
+        min_val = min(all_energy_dft.min(), all_energy_lammps.min())
+        max_val = max(all_energy_dft.max(), all_energy_lammps.max())
+        axs[0, 0].plot([min_val, max_val], [min_val, max_val], 
+                      color='red', linewidth=1.5, linestyle='--', label='Perfect')
         
-        # 计算总体统计
-        rmse_total = np.sqrt(np.mean((all_lammps - all_dft)**2))
-        mae_total = np.mean(np.abs(all_lammps - all_dft))
-        r2_total = calculate_r2(all_dft, all_lammps)
+        rmse_total = np.sqrt(np.mean((all_energy_lammps - all_energy_dft)**2))
+        mae_total = np.mean(np.abs(all_energy_lammps - all_energy_dft))
+        r2_total = calculate_r2(all_energy_dft, all_energy_lammps)
         
         stats_text = f'Overall:\nRMSE = {rmse_total:.4f} eV/atom\nMAE = {mae_total:.4f} eV/atom\nR² = {r2_total:.4f}'
-        ax.text(0.05, 0.95, stats_text, transform=ax.transAxes,
-               verticalalignment='top', fontsize=12,
-               bbox={'boxstyle': 'round', 'facecolor': 'white', 'alpha': 0.8})
+        axs[0, 0].text(0.05, 0.95, stats_text, transform=axs[0, 0].transAxes,
+                      verticalalignment='top', fontsize=12,
+                      bbox={'boxstyle': 'round', 'facecolor': 'white', 'alpha': 0.8})
     
-    ax.set_xlabel('DFT Energy (eV/atom)', fontsize=12)
-    ax.set_ylabel('LAMMPS Energy (eV/atom)', fontsize=12)
-    ax.grid(True, alpha=0.3)
-    ax.legend(loc='lower right', fontsize=10)
+    axs[0, 0].set_xlabel('DFT Energy (eV/atom)', fontsize=12)
+    axs[0, 0].set_ylabel('LAMMPS Energy (eV/atom)', fontsize=12)
+    axs[0, 0].set_title('Energy Comparison', fontsize=14)
+    axs[0, 0].grid(True, alpha=0.3)
+    axs[0, 0].legend(loc='lower right', fontsize=9)
+    
+    # 2. 力子图（右上）
+    print("\n力分析（按相分类）:")
+    if len(dft_data['forces']) > 0 and len(dft_data.get('force_structure_indices', [])) > 0:
+        all_force_dft = []
+        all_force_lammps = []
+        
+        # 为每个力分量获取对应的 config_type
+        force_config_types = dft_data['config_types'][dft_data['force_structure_indices']]
+        
+        for phase_key, phase_info in phase_config.items():
+            mask = np.isin(force_config_types, phase_info['config_types'])
+            
+            if np.sum(mask) > 0:
+                phase_dft = dft_data['forces'][mask]
+                phase_lammps = lammps_data['forces'][mask]
+                
+                all_force_dft.extend(phase_dft)
+                all_force_lammps.extend(phase_lammps)
+                
+                axs[0, 1].scatter(phase_dft, phase_lammps, 
+                                alpha=0.3, s=5, 
+                                color=phase_info['color'],
+                                marker=phase_info['marker'],
+                                edgecolor='none',
+                                label=f"{phase_info['name']} (n={len(phase_dft)})")
+                
+                rmse = np.sqrt(np.mean((phase_lammps - phase_dft)**2))
+                mae = np.mean(np.abs(phase_lammps - phase_dft))
+                print(f"  {phase_info['name']}: n={len(phase_dft)}, RMSE={rmse:.4f}, MAE={mae:.4f}")
+        
+        if all_force_dft:
+            all_force_dft = np.array(all_force_dft)
+            all_force_lammps = np.array(all_force_lammps)
+            min_val = min(all_force_dft.min(), all_force_lammps.min())
+            max_val = max(all_force_dft.max(), all_force_lammps.max())
+            axs[0, 1].plot([min_val, max_val], [min_val, max_val], 
+                          color='red', linewidth=1.5, linestyle='--', label='Perfect')
+            
+            rmse_total = np.sqrt(np.mean((all_force_lammps - all_force_dft)**2))
+            mae_total = np.mean(np.abs(all_force_lammps - all_force_dft))
+            r2_total = calculate_r2(all_force_dft, all_force_lammps)
+            
+            stats_text = f'Overall:\nRMSE = {rmse_total:.4f} eV/Å\nMAE = {mae_total:.4f} eV/Å\nR² = {r2_total:.4f}'
+            axs[0, 1].text(0.05, 0.95, stats_text, transform=axs[0, 1].transAxes,
+                          verticalalignment='top', fontsize=12,
+                          bbox={'boxstyle': 'round', 'facecolor': 'white', 'alpha': 0.8})
+            
+            print(f"  Overall: n={len(all_force_dft)}, RMSE={rmse_total:.4f}, MAE={mae_total:.4f}")
+        
+        axs[0, 1].legend(loc='lower right', fontsize=9)
+    else:
+        axs[0, 1].axis('off')
+        axs[0, 1].set_title('Force Data Not Available', fontsize=14)
+    
+    axs[0, 1].set_xlabel('DFT Force (eV/Å)', fontsize=12)
+    axs[0, 1].set_ylabel('LAMMPS Force (eV/Å)', fontsize=12)
+    axs[0, 1].set_title('Force Comparison', fontsize=14)
+    axs[0, 1].grid(True, alpha=0.3)
+    
+    # 3. Virial子图（左下）
+    print("\nVirial分析（按相分类）:")
+    if len(dft_data['virial']) > 0 and len(dft_data.get('virial_structure_indices', [])) > 0:
+        all_virial_dft = []
+        all_virial_lammps = []
+        
+        # 为每个virial分量获取对应的 config_type
+        virial_config_types = dft_data['config_types'][dft_data['virial_structure_indices']]
+        
+        # 按相分类绘制virial数据
+        for phase_key, phase_info in phase_config.items():
+            mask = np.isin(virial_config_types, phase_info['config_types'])
+            
+            if np.sum(mask) > 0:
+                phase_dft = dft_data['virial'][mask]
+                phase_lammps = lammps_data['virial'][mask]
+                
+                all_virial_dft.extend(phase_dft)
+                all_virial_lammps.extend(phase_lammps)
+                
+                axs[1, 0].scatter(phase_dft, phase_lammps, 
+                                alpha=0.3, s=5, 
+                                color=phase_info['color'],
+                                marker=phase_info['marker'],
+                                edgecolor='none',
+                                label=f"{phase_info['name']} (n={len(phase_dft)})")
+                
+                rmse = np.sqrt(np.mean((phase_lammps - phase_dft)**2))
+                mae = np.mean(np.abs(phase_lammps - phase_dft))
+                print(f"  {phase_info['name']}: n={len(phase_dft)}, RMSE={rmse:.4f}, MAE={mae:.4f}")
+        
+        if all_virial_dft:
+            all_virial_dft = np.array(all_virial_dft)
+            all_virial_lammps = np.array(all_virial_lammps)
+            min_val = min(all_virial_dft.min(), all_virial_lammps.min())
+            max_val = max(all_virial_dft.max(), all_virial_lammps.max())
+            axs[1, 0].plot([min_val, max_val], [min_val, max_val], 
+                          color='red', linewidth=1.5, linestyle='--', label='Perfect')
+            
+            rmse_virial = np.sqrt(np.mean((all_virial_lammps - all_virial_dft)**2))
+            mae_virial = np.mean(np.abs(all_virial_lammps - all_virial_dft))
+            r2_virial = calculate_r2(all_virial_dft, all_virial_lammps)
+            
+            stats_text = f'Overall:\nRMSE = {rmse_virial:.4f} eV/atom\nMAE = {mae_virial:.4f} eV/atom\nR² = {r2_virial:.4f}'
+            axs[1, 0].text(0.05, 0.95, stats_text, transform=axs[1, 0].transAxes,
+                          verticalalignment='top', fontsize=12,
+                          bbox={'boxstyle': 'round', 'facecolor': 'white', 'alpha': 0.8})
+            
+            print(f"  Overall: n={len(all_virial_dft)}, RMSE={rmse_virial:.4f}, MAE={mae_virial:.4f}")
+        
+        axs[1, 0].legend(loc='lower right', fontsize=9)
+    else:
+        axs[1, 0].axis('off')
+        axs[1, 0].set_title('Virial Data Not Available', fontsize=14)
+    
+    axs[1, 0].set_xlabel('DFT Virial (eV/atom)', fontsize=12)
+    axs[1, 0].set_ylabel('LAMMPS Virial (eV/atom)', fontsize=12)
+    axs[1, 0].set_title('Virial Comparison', fontsize=14)
+    axs[1, 0].grid(True, alpha=0.3)
+    
+    # 4. 隐藏右下角子图
+    axs[1, 1].axis('off')
     
     plt.tight_layout()
     plt.savefig(output_file, dpi=300, bbox_inches='tight')
-    print(f"按相分类图表已保存到: {output_file}")
+    print(f"\n按相分类图表已保存到: {output_file}")
 
 
 def plot_comparison(dft_data: Dict, lammps_data: Dict, output_file: str, title_suffix: str = '', dataset_name: str = ''):
@@ -613,17 +753,14 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 示例用法:
-  # 基本用法
-  python scripts/analyze_errors.py run/tabgap_sparse/raw_data
+  # 基本用法（完整分析）
+  python scripts/analyze_errors.py run/raw_data/3.3.0_nep2025 -o run/analysis/3.3.0_nep2025
   
-  # 指定输出目录（短选项）
-  python scripts/analyze_errors.py run/tabgap_sparse/raw_data -o results
+  # 简化分析模式（只做全部训练集分析）
+  python scripts/analyze_errors.py run/raw_data/3.3.0_nep2025 -o run/analysis/3.3.0_nep2025 --simple
   
-  # 自定义低能量区间阈值（短选项）
-  python scripts/analyze_errors.py run/tabgap_sparse/raw_data -t 5.0
-  
-  # 组合使用
-  python scripts/analyze_errors.py run/tabgap_sparse/raw_data -o results -t 5.0
+  # 自定义低能量区间阈值
+  python scripts/analyze_errors.py run/raw_data/3.3.0_nep2025 -o run/analysis/3.3.0_nep2025 -t 5.0
         """
     )
     
@@ -643,6 +780,11 @@ def main():
         type=float,
         default=3.0,
         help="低能量区间阈值（eV），相对于最低能量的偏移量（默认：3.0）"
+    )
+    parser.add_argument(
+        "--simple",
+        action="store_true",
+        help="简化分析模式：只做全部训练集分析，不做低能和指定组分析"
     )
     
     args = parser.parse_args()
@@ -691,6 +833,16 @@ def main():
     plot_file = output_path / "error_analysis_comparison.png"
     plot_comparison(dft_data, lammps_data, str(plot_file), dataset_name=dataset_name)
     
+    # 如果是简化模式，跳过低能量和相分类分析
+    if args.simple:
+        print("\n" + "=" * 80)
+        print("简化分析模式：跳过低能量和相分类分析")
+        print("=" * 80)
+        print("\n" + "=" * 80)
+        print("分析完成！")
+        print("=" * 80)
+        return 0
+    
     # 低能量区间分析
     print("\n" + "=" * 80)
     print(f"低能量区间分析（DFT能量 < 最低值 + {args.low_energy_threshold} eV）")
@@ -707,31 +859,53 @@ def main():
         # 筛选低能量区间的数据
         low_energy_mask = dft_data['energy'] < energy_threshold
         
+        # 获取低能量区间的结构索引和 config_types
+        low_energy_indices = np.where(low_energy_mask)[0]  # 低能量结构的索引
+        low_energy_config_types = dft_data['config_types'][low_energy_mask]
+        
         low_energy_dft = {
             'energy': dft_data['energy'][low_energy_mask],
             'forces': np.array([]),
             'virial': np.array([]),
-            'config_types': dft_data['config_types'][low_energy_mask]
+            'config_types': low_energy_config_types,
+            'force_structure_indices': np.array([]),
+            'virial_structure_indices': np.array([])
         }
         
         low_energy_lammps = {
             'energy': lammps_data['energy'][low_energy_mask],
             'forces': np.array([]),
             'virial': np.array([]),
-            'config_types': lammps_data['config_types'][low_energy_mask]
+            'config_types': low_energy_config_types,
+            'force_structure_indices': np.array([]),
+            'virial_structure_indices': np.array([])
         }
         
-        # 对于力和virial，需要根据结构索引来筛选
-        # 这里简化处理：如果有力和virial数据，也进行相应筛选
-        if len(dft_data['forces']) > 0:
-            # 注意：这里假设forces是按结构顺序展平的
-            # 实际实现中需要更复杂的索引映射
-            low_energy_dft['forces'] = dft_data['forces']
-            low_energy_lammps['forces'] = lammps_data['forces']
+        # 创建索引映射：原始索引 -> 新索引
+        index_mapping = {old_idx: new_idx for new_idx, old_idx in enumerate(low_energy_indices)}
         
-        if len(dft_data['virial']) > 0:
-            low_energy_dft['virial'] = dft_data['virial']
-            low_energy_lammps['virial'] = lammps_data['virial']
+        # 对于力和virial，根据结构索引来筛选对应的数据
+        if len(dft_data['forces']) > 0 and len(dft_data['force_structure_indices']) > 0:
+            # 筛选属于低能量结构的力数据
+            force_mask = np.isin(dft_data['force_structure_indices'], low_energy_indices)
+            low_energy_dft['forces'] = dft_data['forces'][force_mask]
+            low_energy_lammps['forces'] = lammps_data['forces'][force_mask]
+            # 重新映射索引到新的范围 [0, len(low_energy_indices))
+            old_indices = dft_data['force_structure_indices'][force_mask]
+            new_indices = np.array([index_mapping[idx] for idx in old_indices])
+            low_energy_dft['force_structure_indices'] = new_indices
+            low_energy_lammps['force_structure_indices'] = new_indices
+        
+        if len(dft_data['virial']) > 0 and len(dft_data['virial_structure_indices']) > 0:
+            # 筛选属于低能量结构的virial数据
+            virial_mask = np.isin(dft_data['virial_structure_indices'], low_energy_indices)
+            low_energy_dft['virial'] = dft_data['virial'][virial_mask]
+            low_energy_lammps['virial'] = lammps_data['virial'][virial_mask]
+            # 重新映射索引到新的范围 [0, len(low_energy_indices))
+            old_indices = dft_data['virial_structure_indices'][virial_mask]
+            new_indices = np.array([index_mapping[idx] for idx in old_indices])
+            low_energy_dft['virial_structure_indices'] = new_indices
+            low_energy_lammps['virial_structure_indices'] = new_indices
         
         print(f"筛选后样本数: {len(low_energy_dft['energy'])} / {len(dft_data['energy'])}")
         
