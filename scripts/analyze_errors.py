@@ -529,8 +529,11 @@ def plot_phase_comparison(dft_data: Dict, lammps_data: Dict, output_file: str, d
     print(f"\n按相分类图表已保存到: {output_file}")
 
 
-def plot_comparison(dft_data: Dict, lammps_data: Dict, output_file: str, title_suffix: str = '', dataset_name: str = ''):
+def plot_comparison(dft_data: Dict, lammps_data: Dict, output_file: str, title_suffix: str = '', dataset_name: str = '', color_by_config: bool = False):
     """绘制对比图"""
+    # 使用 matplotlib 的默认颜色循环来自动分配颜色
+    default_colors = plt.cm.tab10.colors  # 10种不同的颜色
+    
     fig, axs = plt.subplots(2, 2, figsize=(14, 12))
     
     # 构建标题
@@ -541,7 +544,6 @@ def plot_comparison(dft_data: Dict, lammps_data: Dict, output_file: str, title_s
     
     fig.suptitle(main_title, fontsize=16, fontweight='bold')
     
-    scatter_kwargs = {'alpha': 0.4, 's': 15, 'edgecolor': 'none'}
     line_kwargs = {'color': 'red', 'linewidth': 1.5, 'linestyle': '--'}
     stats_kwargs = {'fontsize': 12, 'bbox': {'boxstyle': 'round', 'facecolor': 'white', 'alpha': 0.8}}
     
@@ -549,12 +551,37 @@ def plot_comparison(dft_data: Dict, lammps_data: Dict, output_file: str, title_s
     if len(dft_data['energy']) > 0:
         dft_energy = dft_data['energy']
         lammps_energy = lammps_data['energy']
+        config_types = dft_data['config_types']
         
         rmse_energy = np.sqrt(np.mean((lammps_energy - dft_energy)**2))
         mae_energy = np.mean(np.abs(lammps_energy - dft_energy))
         r2_energy = calculate_r2(dft_energy, lammps_energy)
         
-        axs[0, 0].scatter(dft_energy, lammps_energy, **scatter_kwargs)
+        if color_by_config and len(config_types) > 0:
+            # 按 config_type 分类绘制，动态分配颜色
+            unique_configs = np.unique(config_types[config_types != None])  # 排除 None 值
+            for i, config_type in enumerate(unique_configs):
+                if config_type is None:
+                    continue
+                mask = config_types == config_type
+                color = default_colors[i % len(default_colors)]  # 循环使用颜色
+                axs[0, 0].scatter(dft_energy[mask], lammps_energy[mask], 
+                                alpha=0.6, s=20, color=color, edgecolor='none',
+                                label=f'{config_type} (n={np.sum(mask)})')
+            
+            # 处理 None 值（如果有的话）
+            none_mask = config_types == None
+            if np.sum(none_mask) > 0:
+                axs[0, 0].scatter(dft_energy[none_mask], lammps_energy[none_mask], 
+                                alpha=0.6, s=20, color='#cccccc', edgecolor='none',
+                                label=f'unknown (n={np.sum(none_mask)})')
+            
+            axs[0, 0].legend(loc='lower right', fontsize=9)
+        else:
+            # 统一颜色绘制
+            scatter_kwargs = {'alpha': 0.4, 's': 15, 'edgecolor': 'none'}
+            axs[0, 0].scatter(dft_energy, lammps_energy, **scatter_kwargs)
+        
         min_val = min(dft_energy.min(), lammps_energy.min())
         max_val = max(dft_energy.max(), lammps_energy.max())
         axs[0, 0].plot([min_val, max_val], [min_val, max_val], **line_kwargs)
@@ -579,7 +606,32 @@ def plot_comparison(dft_data: Dict, lammps_data: Dict, output_file: str, title_s
         mae_force = np.mean(np.abs(lammps_force - dft_force))
         r2_force = calculate_r2(dft_force, lammps_force)
         
-        axs[0, 1].scatter(dft_force, lammps_force, **scatter_kwargs)
+        if color_by_config and len(dft_data.get('force_structure_indices', [])) > 0:
+            # 为每个力分量获取对应的 config_type
+            force_config_types = dft_data['config_types'][dft_data['force_structure_indices']]
+            unique_configs = np.unique(force_config_types[force_config_types != None])
+            
+            for i, config_type in enumerate(unique_configs):
+                if config_type is None:
+                    continue
+                mask = force_config_types == config_type
+                color = default_colors[i % len(default_colors)]
+                axs[0, 1].scatter(dft_force[mask], lammps_force[mask], 
+                                alpha=0.3, s=5, color=color, edgecolor='none',
+                                label=f'{config_type} (n={np.sum(mask)})')
+            
+            # 处理 None 值
+            none_mask = force_config_types == None
+            if np.sum(none_mask) > 0:
+                axs[0, 1].scatter(dft_force[none_mask], lammps_force[none_mask], 
+                                alpha=0.3, s=5, color='#cccccc', edgecolor='none',
+                                label=f'unknown (n={np.sum(none_mask)})')
+            
+            axs[0, 1].legend(loc='lower right', fontsize=9)
+        else:
+            scatter_kwargs = {'alpha': 0.4, 's': 15, 'edgecolor': 'none'}
+            axs[0, 1].scatter(dft_force, lammps_force, **scatter_kwargs)
+        
         min_val = min(dft_force.min(), lammps_force.min())
         max_val = max(dft_force.max(), lammps_force.max())
         axs[0, 1].plot([min_val, max_val], [min_val, max_val], **line_kwargs)
@@ -604,7 +656,32 @@ def plot_comparison(dft_data: Dict, lammps_data: Dict, output_file: str, title_s
         mae_virial = np.mean(np.abs(lammps_virial - dft_virial))
         r2_virial = calculate_r2(dft_virial, lammps_virial)
         
-        axs[1, 0].scatter(dft_virial, lammps_virial, **scatter_kwargs)
+        if color_by_config and len(dft_data.get('virial_structure_indices', [])) > 0:
+            # 为每个virial分量获取对应的 config_type
+            virial_config_types = dft_data['config_types'][dft_data['virial_structure_indices']]
+            unique_configs = np.unique(virial_config_types[virial_config_types != None])
+            
+            for i, config_type in enumerate(unique_configs):
+                if config_type is None:
+                    continue
+                mask = virial_config_types == config_type
+                color = default_colors[i % len(default_colors)]
+                axs[1, 0].scatter(dft_virial[mask], lammps_virial[mask], 
+                                alpha=0.3, s=5, color=color, edgecolor='none',
+                                label=f'{config_type} (n={np.sum(mask)})')
+            
+            # 处理 None 值
+            none_mask = virial_config_types == None
+            if np.sum(none_mask) > 0:
+                axs[1, 0].scatter(dft_virial[none_mask], lammps_virial[none_mask], 
+                                alpha=0.3, s=5, color='#cccccc', edgecolor='none',
+                                label=f'unknown (n={np.sum(none_mask)})')
+            
+            axs[1, 0].legend(loc='lower right', fontsize=9)
+        else:
+            scatter_kwargs = {'alpha': 0.4, 's': 15, 'edgecolor': 'none'}
+            axs[1, 0].scatter(dft_virial, lammps_virial, **scatter_kwargs)
+        
         min_val = min(dft_virial.min(), lammps_virial.min())
         max_val = max(dft_virial.max(), lammps_virial.max())
         axs[1, 0].plot([min_val, max_val], [min_val, max_val], **line_kwargs)
@@ -756,7 +833,7 @@ def main():
   # 基本用法（完整分析）
   python scripts/analyze_errors.py run/raw_data/3.3.0_nep2025 -o run/analysis/3.3.0_nep2025
   
-  # 简化分析模式（只做全部训练集分析）
+  # 简化分析模式（只做全部训练集分析，按config_type分类显示颜色）
   python scripts/analyze_errors.py run/raw_data/3.3.0_nep2025 -o run/analysis/3.3.0_nep2025 --simple
   
   # 自定义低能量区间阈值
@@ -784,7 +861,7 @@ def main():
     parser.add_argument(
         "--simple",
         action="store_true",
-        help="简化分析模式：只做全部训练集分析，不做低能和指定组分析"
+        help="简化分析模式：只做全部训练集分析，不做低能和指定组分析，但绘图时按config_type分类显示不同颜色"
     )
     
     args = parser.parse_args()
@@ -831,7 +908,8 @@ def main():
     
     # 绘制对比图
     plot_file = output_path / "error_analysis_comparison.png"
-    plot_comparison(dft_data, lammps_data, str(plot_file), dataset_name=dataset_name)
+    # 在 simple 模式下启用按 config_type 分类的颜色显示
+    plot_comparison(dft_data, lammps_data, str(plot_file), dataset_name=dataset_name, color_by_config=args.simple)
     
     # 如果是简化模式，跳过低能量和相分类分析
     if args.simple:

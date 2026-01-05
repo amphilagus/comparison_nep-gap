@@ -2,7 +2,7 @@
 """
 根据平均能量rescale权重的脚本
 
-用法: python rescale_weights.py <xyz_file> <alpha>
+用法: python rescale_weights.py <xyz_file> <epsilon> <alpha>
 """
 
 import sys
@@ -62,13 +62,14 @@ def parse_xyz_file(filename):
     return structures
 
 
-def rescale_weights(structures, alpha):
+def rescale_weights(structures, epsilon, alpha):
     """根据平均能量rescale权重"""
     # 找到最小平均能量
     min_avg_energy = min(s['avg_energy'] for s in structures)
     
     print(f"最小平均能量: {min_avg_energy:.6f} eV/atom")
-    print(f"Rescale幂指数 alpha: {alpha}")
+    print(f"Epsilon参数: {epsilon}")
+    print(f"Alpha幂指数: {alpha}")
     print(f"总结构数: {len(structures)}")
     print()
     
@@ -77,8 +78,8 @@ def rescale_weights(structures, alpha):
         e = structure['avg_energy']
         e1 = min_avg_energy
         
-        # rescale比例 = 1 / (1 + (e - e1)^alpha)
-        rescale_factor = 1.0 / (1.0 + (e - e1) ** alpha)
+        # rescale比例 = 1 / (1 + (e/epsilon - e1/epsilon)^alpha)
+        rescale_factor = 1.0 / (1.0 + (e/epsilon - e1/epsilon) ** alpha)
         
         # 新权重 = 旧权重 * rescale比例
         new_weight = structure['weight'] * rescale_factor
@@ -111,7 +112,7 @@ def write_rescaled_xyz(structures, output_filename):
     print(f"已写入rescale后的文件: {output_filename}")
 
 
-def plot_rescale_analysis(structures, output_filename, alpha):
+def plot_rescale_analysis(structures, output_filename, epsilon, alpha):
     """绘制权重缩放分析图"""
     # 提取数据
     energies = [s['avg_energy'] for s in structures]
@@ -137,7 +138,7 @@ def plot_rescale_analysis(structures, output_filename, alpha):
     min_energy = min(energies)
     max_energy = max(energies)
     energy_range = np.linspace(min_energy, max_energy, 500)
-    rescale_curve = 1.0 / (1.0 + (energy_range - min_energy) ** alpha)
+    rescale_curve = 1.0 / (1.0 + (energy_range/epsilon - min_energy/epsilon) ** alpha)
     ax1.plot(energy_range, rescale_curve, 'k-', linewidth=2, zorder=1)
     
     # 设置左侧y轴为对数轴
@@ -162,7 +163,7 @@ def plot_rescale_analysis(structures, output_filename, alpha):
     ax2.tick_params(axis='y', labelcolor='gray')
     
     # 添加标题
-    plt.title(f'Weight Rescale Factor vs Energy by Config Type (α={alpha})', fontsize=14, pad=20)
+    plt.title(f'Weight Rescale Factor vs Energy by Config Type (ε={epsilon}, α={alpha})', fontsize=14, pad=20)
     
     # 调整布局
     plt.tight_layout()
@@ -176,19 +177,20 @@ def plot_rescale_analysis(structures, output_filename, alpha):
 
 
 def main():
-    if len(sys.argv) != 3:
-        print("用法: python rescale_weights.py <xyz_file> <alpha>")
-        print("示例: python rescale_weights.py train.xyz 2.0")
+    if len(sys.argv) != 4:
+        print("用法: python rescale_weights.py <xyz_file> <epsilon> <alpha>")
+        print("示例: python rescale_weights.py train.xyz 1.0 2.0")
         sys.exit(1)
     
     xyz_file = sys.argv[1]
-    alpha = float(sys.argv[2])
+    epsilon = float(sys.argv[2])
+    alpha = float(sys.argv[3])
     
     # 生成输出文件名
     if xyz_file.endswith('.xyz'):
-        output_file = xyz_file[:-4] + f'_rescaled-{alpha}.xyz'
+        output_file = xyz_file[:-4] + f'_rescaled-eps{epsilon}-alpha{alpha}.xyz'
     else:
-        output_file = xyz_file + f'_rescaled-{alpha}.xyz'
+        output_file = xyz_file + f'_rescaled-eps{epsilon}-alpha{alpha}.xyz'
     
     print(f"输入文件: {xyz_file}")
     print(f"输出文件: {output_file}")
@@ -200,7 +202,7 @@ def main():
     
     # Rescale权重
     print("正在rescale权重...")
-    structures = rescale_weights(structures, alpha)
+    structures = rescale_weights(structures, epsilon, alpha)
     
     # 写入新文件
     write_rescaled_xyz(structures, output_file)
@@ -208,7 +210,7 @@ def main():
     # 绘制分析图
     print()
     print("正在生成分析图...")
-    plot_rescale_analysis(structures, output_file, alpha)
+    plot_rescale_analysis(structures, output_file, epsilon, alpha)
     
     # 打印统计信息
     print()

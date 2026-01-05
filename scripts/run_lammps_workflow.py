@@ -461,7 +461,7 @@ def main():
     parser.add_argument(
         "--simple",
         action="store_true",
-        help="简化分析模式：只做全部训练集分析，不做低能和指定组分析"
+        help="简化分析模式：只做全部训练集分析，不做低能和指定组分析，但绘图时按config_type分类显示不同颜色"
     )
     parser.add_argument(
         "-t", "--low-energy-threshold",
