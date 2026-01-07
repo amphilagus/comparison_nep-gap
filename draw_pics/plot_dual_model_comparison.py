@@ -461,16 +461,30 @@ def plot_dual_comparison_2x3(dft_data1_t5: Dict, lammps_data1_t5: Dict,
                             sparse_ratio: float = 0.1):
     """绘制双模型对比的2列3行图"""
     
-    # 设置字体为 Times New Roman
-    # plt.rcParams['font.family'] = 'Helvetica'
+    from matplotlib.gridspec import GridSpec
+
+    # 设置基础尺寸
+    figsize = 10
+    fontsize = 10
+    xaxis_label_dx = -0.1
+    yaxis_label_dy = -0.11
+
+    # 设置字体为 Arial
+    plt.rcParams['font.family'] = 'Arial'
     
-    # 设置图形
-    fig, axes = plt.subplots(3, 2, figsize=(12, 15))
-    
-    # 添加列标题
-    axes[0, 0].set_title("Total", fontsize=24, fontweight='bold', pad=40)
-    axes[0, 1].set_title("Low_Energy", fontsize=24, fontweight='bold', pad=40)
-    
+    # 使用超精细网格划分方式
+    n = 100
+    x0 = 10*n
+    y0 = 8*n
+    y1 = int(1.2*n)
+    dy1 = int(y1/3)
+    dy = int(y0/5)
+    dx = int(x0/4.5)
+    M = int(2*x0+dx)
+    N = int(3*y0+2*dy+y1+dy1)
+    # 创建一个 2x3 的网格布局
+    fig = plt.figure(figsize=(figsize, N/(M/figsize)))
+    gs = GridSpec(N, M, figure=fig,width_ratios=np.ones(M),height_ratios=np.ones(N))
     # 数据类型和标签
     data_types = ['energy', 'forces', 'virial']
     data_labels = ['Energy (eV/atom)', 'Force (eV/Å)', 'Virial (eV/atom)']
@@ -484,28 +498,42 @@ def plot_dual_comparison_2x3(dft_data1_t5: Dict, lammps_data1_t5: Dict,
     # 数据集
     data_sets1 = [(dft_data1_t5, lammps_data1_t5), (dft_data1_t05, lammps_data1_t05)]
     data_sets2 = [(dft_data2_t5, lammps_data2_t5), (dft_data2_t05, lammps_data2_t05)]
-    
+
+    # 小范围    
+    col = 1
+    ax = fig.add_subplot(gs[0:int(y1), col*(x0+dx):col*(x0+dx)+x0])
+    ax.annotate('Narrower Energy Range', xy=(0.5, 0.5), xycoords='axes fraction', fontsize=fontsize+5, ha='center', va='center',
+                    color='black', fontweight='bold')
+    ax.axis("off")
+
+    # 大范围结果标题
+    col = 0
+    ax = fig.add_subplot(gs[0:int(y1), col*(x0+dx):col*(x0+dx)+x0])
+    ax.annotate('Broader Energy Range', xy=(0.5, 0.5), xycoords='axes fraction', fontsize=fontsize+5, ha='center', va='center',
+                    color='black', fontweight='bold')
+    ax.axis("off")
+
     # 子图标题
     subplot_labels = ['(a)', '(b)', '(c)', '(d)', '(e)', '(f)']
     
     plot_index = 0
     for row in range(3):  # 3行：能量、力、位力
         for col in range(2):  # 2列：t=5.0, t=0.5
-            ax = axes[row, col]
+            ax = fig.add_subplot(gs[y1+dy1+row*(y0+dy):y1+dy1+row*(y0+dy)+y0, col*(x0+dx):col*(x0+dx)+x0])
             dft_data1, lammps_data1 = data_sets1[col]
             dft_data2, lammps_data2 = data_sets2[col]
             data_type = data_types[row]
             
             # 添加子图标题
             ax.text(-0.1, 1.1, subplot_labels[plot_index], transform=ax.transAxes,
-                   fontsize=22, fontweight='bold', ha='left', va='top')
+                   fontsize=fontsize+3, fontweight='bold', ha='left', va='top')
             
             # 收集所有数据点以确定坐标轴范围
             all_dft_vals = []
             all_lammps_vals = []
 
             alpha = 0.5 if data_type == 'energy' else 0.5
-            s = 8 if data_type == 'energy' else 0.3 if data_type == 'forces' else 5          
+            s = 6 if data_type == 'energy' else 0.3 if data_type == 'forces' else 4          
 
             # 绘制模型1
             if len(dft_data1[data_type]) > 0:
@@ -524,7 +552,7 @@ def plot_dual_comparison_2x3(dft_data1_t5: Dict, lammps_data1_t5: Dict,
                 
                 ax.scatter(dft_vals1_plot, lammps_vals1_plot, alpha=alpha, s=s, 
                           edgecolor='none', color=color1, marker=marker1, 
-                          label=model1_name, zorder=4)
+                          label='NEP', zorder=4)
                 
                 all_dft_vals.append(dft_vals1)
                 all_lammps_vals.append(lammps_vals1)
@@ -573,30 +601,36 @@ def plot_dual_comparison_2x3(dft_data1_t5: Dict, lammps_data1_t5: Dict,
             # 添加统计信息
             stats_lines = []
             if len(dft_data1[data_type]) > 0:
-                stats_lines.append(f'{model1_name}:')
+                stats_lines.append(f'NEP:')
                 stats_lines.append(f'RMSE = {rmse1:.4f}')
                 stats_lines.append(f'MAE = {mae1:.4f}')
-                stats_lines.append(f'R² = {r2_1:.4f}')
-                stats_lines.append(f'n = {len(dft_vals1)}')
+                # stats_lines.append(f'R² = {r2_1:.4f}')
+                # stats_lines.append(f'n = {len(dft_vals1)}')
             
             if len(dft_data2[data_type]) > 0:
                 if stats_lines:
                     stats_lines.append('')
-                stats_lines.append(f'{model2_name}:')
+                stats_lines.append(f'tabGAP:')
                 stats_lines.append(f'RMSE = {rmse2:.4f}')
                 stats_lines.append(f'MAE = {mae2:.4f}')
-                stats_lines.append(f'R² = {r2_2:.4f}')
-                stats_lines.append(f'n = {len(dft_vals2)}')
+                # stats_lines.append(f'R² = {r2_2:.4f}')
+                # stats_lines.append(f'n = {len(dft_vals2)}')
             
             if stats_lines:
                 stats_text = '\n'.join(stats_lines)
                 ax.text(0.05, 0.95, stats_text, transform=ax.transAxes,
-                       verticalalignment='top', fontsize=8,
+                       verticalalignment='top', fontsize=fontsize-1,
                        bbox={'boxstyle': 'round', 'facecolor': 'white', 'alpha': 0.9})
             
             # 设置标签
             ax.set_xlabel(f'DFT {data_labels[row]}', fontweight='bold')
+            ax.xaxis.set_label_coords(0.5, xaxis_label_dx)
+            ax.tick_params(
+                axis='both',
+                labelsize=fontsize
+            )
             ax.set_ylabel(f'LAMMPS {data_labels[row]}', fontweight='bold')
+            ax.yaxis.set_label_coords(yaxis_label_dy, 0.5)
             ax.grid(True, alpha=0.3)
             
             # 为Force和Virial设置显示范围限制
@@ -609,11 +643,11 @@ def plot_dual_comparison_2x3(dft_data1_t5: Dict, lammps_data1_t5: Dict,
             
             # 添加图例（只在第一行显示）
             if row == 0:
-                ax.legend(loc='lower right', fontsize=9, framealpha=0.9)
+                ax.legend(loc='lower right', fontsize=fontsize, framealpha=0.9)
             
             plot_index += 1
     
-    plt.tight_layout(rect=[0, 0, 1, 0.96])
+    # plt.tight_layout(rect=[0, 0, 1, 0.96])
     plt.savefig(output_file, dpi=600, bbox_inches='tight')
     print(f"\n图表已保存到: {output_file}")
 
