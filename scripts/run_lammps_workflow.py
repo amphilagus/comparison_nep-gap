@@ -10,6 +10,7 @@ import sys
 import subprocess
 import numpy as np
 import re
+import shutil
 from pathlib import Path
 from datetime import datetime
 from typing import Dict, List, Optional
@@ -433,8 +434,8 @@ def main():
     parser.add_argument(
         "--lammps",
         type=str,
-        default="opt/lmp_nep_tabgap",
-        help="LAMMPS可执行文件路径（默认：opt/lmp_nep_tabgap）"
+        default="lmp",
+        help="LAMMPS可执行文件或命令（默认：lmp，使用PATH）"
     )
     parser.add_argument(
         "--max-jobs",
@@ -561,9 +562,11 @@ def main():
     if not args.skip_run:
         print("\n[步骤 5/5] 批量运行LAMMPS计算...")
         
-        lammps_path = Path(args.lammps).resolve()
-        if not lammps_path.exists():
-            print(f"  错误：LAMMPS可执行文件 {args.lammps} 不存在")
+        lammps_candidate = args.lammps
+        found = shutil.which(lammps_candidate)
+        lammps_path = Path(found) if found else Path(lammps_candidate).resolve()
+        if not lammps_path.exists() or not os.access(str(lammps_path), os.X_OK):
+            print(f"  错误：无法找到可执行的 LAMMPS ({args.lammps})，请检查PATH或提供绝对路径")
             return 1
         
         subdirs = [d for d in output_dir.iterdir() if d.is_dir() and (d / "run.in").exists()]

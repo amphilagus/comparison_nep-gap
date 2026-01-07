@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 集成的双模型对比分析脚本
-自动校准NEP能量基线到TabGAP，并绘制2列3行的对比图
+自动校准NEP能量基线到tabGAP，并绘制2列3行的对比图
 只需指定NEP版本号和数据集名称，自动推断所有文件路径
 """
 
@@ -17,7 +17,7 @@ from typing import Dict, List, Tuple
 class EnergyAligner:
     """能量基线校准工具"""
     def __init__(self):
-        # TabGAP zero-point energies (eV)
+        # tabGAP zero-point energies (eV)
         self.tabgap_zpe = {
             'Ga': -0.0244486,
             'O': -0.0350174
@@ -51,7 +51,7 @@ class EnergyAligner:
     
     def calculate_offset_per_atom(self, atom_counts: Dict[str, int]) -> float:
         """
-        计算从NEP基线到TabGAP基线的per-atom能量偏移
+        计算从NEP基线到tabGAP基线的per-atom能量偏移
         
         Args:
             atom_counts: 原子计数 {'Ga': n_Ga, 'O': n_O}
@@ -63,7 +63,7 @@ class EnergyAligner:
         if n_total == 0:
             return 0.0
         
-        # 计算总偏移量（从NEP到TabGAP）
+        # 计算总偏移量（从NEP到tabGAP）
         offset_total = (
             atom_counts['Ga'] * (self.tabgap_zpe['Ga'] - self.nep_zpe['Ga']) +
             atom_counts['O'] * (self.tabgap_zpe['O'] - self.nep_zpe['O'])
@@ -169,7 +169,7 @@ def parse_lammps_summary(summary_file: str) -> Dict:
 
 def align_nep_energies(nep_csv: str, raw_data_dir: str, tabgap_csv: str) -> Tuple[List[Dict], bool]:
     """
-    校准NEP能量到TabGAP基线
+    校准NEP能量到tabGAP基线
     
     Returns:
         (aligned_data, success): 校准后的数据和是否成功的标志
@@ -181,7 +181,7 @@ def align_nep_energies(nep_csv: str, raw_data_dir: str, tabgap_csv: str) -> Tupl
         for row in reader:
             nep_data.append(row)
     
-    # 读取TabGAP CSV用于验证
+    # 读取tabGAP CSV用于验证
     tabgap_dft_energies = {}
     with open(tabgap_csv, 'r') as f:
         reader = csv.DictReader(f)
@@ -193,10 +193,10 @@ def align_nep_energies(nep_csv: str, raw_data_dir: str, tabgap_csv: str) -> Tupl
     raw_path = Path(raw_data_dir)
     
     print("\n" + "=" * 60)
-    print("NEP能量基线校准到TabGAP")
+    print("NEP能量基线校准到tabGAP")
     print("=" * 60)
     print(f"NEP零点能量: Ga={aligner.nep_zpe['Ga']:.6f} eV, O={aligner.nep_zpe['O']:.6f} eV")
-    print(f"TabGAP零点能量: Ga={aligner.tabgap_zpe['Ga']:.6f} eV, O={aligner.tabgap_zpe['O']:.6f} eV")
+    print(f"tabGAP零点能量: Ga={aligner.tabgap_zpe['Ga']:.6f} eV, O={aligner.tabgap_zpe['O']:.6f} eV")
     print("=" * 60)
     
     # 处理每一行数据
@@ -244,7 +244,7 @@ def align_nep_energies(nep_csv: str, raw_data_dir: str, tabgap_csv: str) -> Tupl
             
             aligned_data.append(new_row)
             
-            # 验证：与TabGAP的DFT能量比较
+            # 验证：与tabGAP的DFT能量比较
             if structure_id in tabgap_dft_energies:
                 tabgap_dft = tabgap_dft_energies[structure_id]
                 dft_diff = abs(aligned_dft - tabgap_dft)
@@ -257,7 +257,7 @@ def align_nep_energies(nep_csv: str, raw_data_dir: str, tabgap_csv: str) -> Tupl
                     print(f"    偏移量: {offset_per_atom:.10f} eV/atom")
                     print(f"    NEP DFT原始: {original_dft:.10f} eV/atom")
                     print(f"    NEP DFT校准后: {aligned_dft:.10f} eV/atom")
-                    print(f"    TabGAP DFT: {tabgap_dft:.10f} eV/atom")
+                    print(f"    tabGAP DFT: {tabgap_dft:.10f} eV/atom")
                     print(f"    差异: {dft_diff:.6e} eV/atom")
             
             success_count += 1
@@ -278,7 +278,7 @@ def align_nep_energies(nep_csv: str, raw_data_dir: str, tabgap_csv: str) -> Tupl
         print("\n" + "=" * 60)
         print("能量基线校准验证")
         print("=" * 60)
-        print(f"与TabGAP DFT能量比较（{len(dft_diffs)}个共同结构）:")
+        print(f"与tabGAP DFT能量比较（{len(dft_diffs)}个共同结构）:")
         print(f"  最大差异: {max_diff:.6e} eV/atom")
         print(f"  平均差异: {mean_diff:.6e} eV/atom")
         
@@ -457,12 +457,19 @@ def plot_dual_comparison_2x3(dft_data1_t5: Dict, lammps_data1_t5: Dict,
                             dft_data2_t05: Dict, lammps_data2_t05: Dict,
                             output_file: str,
                             model1_name: str = 'NEP',
-                            model2_name: str = 'TabGAP',
+                            model2_name: str = 'tabGAP',
                             sparse_ratio: float = 0.1):
     """绘制双模型对比的2列3行图"""
     
+    # 设置字体为 Times New Roman
+    # plt.rcParams['font.family'] = 'Helvetica'
+    
     # 设置图形
     fig, axes = plt.subplots(3, 2, figsize=(12, 15))
+    
+    # 添加列标题
+    axes[0, 0].set_title("Total", fontsize=24, fontweight='bold', pad=40)
+    axes[0, 1].set_title("Low_Energy", fontsize=24, fontweight='bold', pad=40)
     
     # 数据类型和标签
     data_types = ['energy', 'forces', 'virial']
@@ -607,7 +614,7 @@ def plot_dual_comparison_2x3(dft_data1_t5: Dict, lammps_data1_t5: Dict,
             plot_index += 1
     
     plt.tight_layout(rect=[0, 0, 1, 0.96])
-    plt.savefig(output_file, dpi=300, bbox_inches='tight')
+    plt.savefig(output_file, dpi=600, bbox_inches='tight')
     print(f"\n图表已保存到: {output_file}")
 
 
@@ -687,7 +694,7 @@ def main():
         return 1
     
     if not tabgap_csv.exists():
-        print(f"错误：TabGAP CSV文件不存在: {tabgap_csv}")
+        print(f"错误：tabGAP CSV文件不存在: {tabgap_csv}")
         return 1
     
     if not nep_raw.exists():
@@ -695,7 +702,7 @@ def main():
         return 1
     
     if not tabgap_raw.exists():
-        print(f"错误：TabGAP原始数据目录不存在: {tabgap_raw}")
+        print(f"错误：tabGAP原始数据目录不存在: {tabgap_raw}")
         return 1
     
     print("=" * 60)
@@ -705,8 +712,8 @@ def main():
     print(f"数据集: {args.dataset}")
     print(f"NEP CSV: {nep_csv}")
     print(f"NEP原始数据: {nep_raw}")
-    print(f"TabGAP CSV: {tabgap_csv}")
-    print(f"TabGAP原始数据: {tabgap_raw}")
+    print(f"tabGAP CSV: {tabgap_csv}")
+    print(f"tabGAP原始数据: {tabgap_raw}")
     print(f"能量阈值: t5={args.t5} eV, t05={args.t05} eV")
     print(f"稀疏化比例: {args.sparse_ratio}")
     print("=" * 60)
@@ -741,7 +748,7 @@ def main():
     dft_data1, lammps_data1 = collect_data_from_csv_and_raw(str(nep_csv_aligned), str(nep_raw))
     print(f"  成功收集: 能量 {len(dft_data1['energy'])} 个, 力 {len(dft_data1['forces'])} 个, Virial {len(dft_data1['virial'])} 个")
     
-    print(f"\n收集TabGAP 数据...")
+    print(f"\n收集tabGAP 数据...")
     dft_data2, lammps_data2 = collect_data_from_csv_and_raw(str(tabgap_csv), str(tabgap_raw))
     print(f"  成功收集: 能量 {len(dft_data2['energy'])} 个, 力 {len(dft_data2['forces'])} 个, Virial {len(dft_data2['virial'])} 个")
     
@@ -763,11 +770,11 @@ def main():
     dft_data1_t05, lammps_data1_t05 = filter_data_by_threshold(dft_data1, lammps_data1, args.t05)
     print(f"  筛选后样本数: {len(dft_data1_t05['energy'])}")
     
-    print(f"\n筛选TabGAP t={args.t5} 的数据...")
+    print(f"\n筛选tabGAP t={args.t5} 的数据...")
     dft_data2_t5, lammps_data2_t5 = filter_data_by_threshold(dft_data2, lammps_data2, args.t5)
     print(f"  筛选后样本数: {len(dft_data2_t5['energy'])}")
     
-    print(f"筛选TabGAP t={args.t05} 的数据...")
+    print(f"筛选tabGAP t={args.t05} 的数据...")
     dft_data2_t05, lammps_data2_t05 = filter_data_by_threshold(dft_data2, lammps_data2, args.t05)
     print(f"  筛选后样本数: {len(dft_data2_t05['energy'])}")
     
@@ -778,7 +785,7 @@ def main():
         dft_data2_t5, lammps_data2_t5, dft_data2_t05, lammps_data2_t05,
         str(output_png),
         model1_name=f"NEP {args.nep_version}",
-        model2_name="TabGAP",
+        model2_name="tabGAP",
         sparse_ratio=args.sparse_ratio
     )
     

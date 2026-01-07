@@ -32,6 +32,7 @@ import os
 import sys
 import subprocess
 import re
+import shutil
 import numpy as np
 import matplotlib.pyplot as plt
 from pathlib import Path
@@ -956,8 +957,8 @@ Examples:
     parser.add_argument(
         "--lammps",
         type=str,
-        default="opt/lmp_nep_tabgap",
-        help="LAMMPS executable path (default: opt/lmp_nep_tabgap)"
+        default="lmp",
+        help="LAMMPS executable or command (default: lmp, use PATH)"
     )
     parser.add_argument(
         "--max-jobs",
@@ -1089,9 +1090,11 @@ def main_single_model(args):
         # Step 5: Run LAMMPS in batch
         print("\n[Step 5/6] Running LAMMPS calculations in batch...")
         
-        lammps_path = Path(args.lammps).resolve()
-        if not lammps_path.exists():
-            print(f"  Error: LAMMPS executable {args.lammps} does not exist")
+        lammps_candidate = args.lammps
+        found = shutil.which(lammps_candidate)
+        lammps_path = Path(found) if found else Path(lammps_candidate).resolve()
+        if not lammps_path.exists() or not os.access(str(lammps_path), os.X_OK):
+            print(f"  Error: Cannot find executable LAMMPS ({args.lammps}), check PATH or provide absolute path")
             return 1
         
         subdirs = [d for d in output_dir.iterdir() if d.is_dir() and (d / "run.in").exists()]
@@ -1286,9 +1289,11 @@ def main_multi_model(args):
             # Step 5: Run LAMMPS
             print(f"    [5/5] Running LAMMPS calculations...")
             
-            lammps_path = Path(args.lammps).resolve()
-            if not lammps_path.exists():
-                print(f"    Error: LAMMPS executable {args.lammps} does not exist")
+            lammps_candidate = args.lammps
+            found = shutil.which(lammps_candidate)
+            lammps_path = Path(found) if found else Path(lammps_candidate).resolve()
+            if not lammps_path.exists() or not os.access(str(lammps_path), os.X_OK):
+                print(f"    Error: Cannot find executable LAMMPS ({args.lammps}), check PATH or provide absolute path")
                 return 1
             
             subdirs = [d for d in raw_data_dir.iterdir() if d.is_dir() and (d / "run.in").exists()]
@@ -1402,4 +1407,3 @@ def main_multi_model(args):
 
 if __name__ == "__main__":
     sys.exit(main())
-
