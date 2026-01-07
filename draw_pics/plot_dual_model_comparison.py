@@ -600,10 +600,11 @@ def plot_dual_comparison_2x3(dft_data1_t5: Dict, lammps_data1_t5: Dict,
             
             # 添加统计信息
             stats_lines = []
+            unit = 'eV/atom' if data_type == 'energy' else 'eV/Å' if data_type == 'forces' else 'eV/atom'
             if len(dft_data1[data_type]) > 0:
                 stats_lines.append(f'NEP:')
-                stats_lines.append(f'RMSE = {rmse1:.4f}')
-                stats_lines.append(f'MAE = {mae1:.4f}')
+                stats_lines.append(f'RMSE = {rmse1:.4f} {unit}')
+                stats_lines.append(f'MAE = {mae1:.4f} {unit}')
                 # stats_lines.append(f'R² = {r2_1:.4f}')
                 # stats_lines.append(f'n = {len(dft_vals1)}')
             
@@ -611,8 +612,8 @@ def plot_dual_comparison_2x3(dft_data1_t5: Dict, lammps_data1_t5: Dict,
                 if stats_lines:
                     stats_lines.append('')
                 stats_lines.append(f'tabGAP:')
-                stats_lines.append(f'RMSE = {rmse2:.4f}')
-                stats_lines.append(f'MAE = {mae2:.4f}')
+                stats_lines.append(f'RMSE = {rmse2:.4f} {unit}')
+                stats_lines.append(f'MAE = {mae2:.4f} {unit}')
                 # stats_lines.append(f'R² = {r2_2:.4f}')
                 # stats_lines.append(f'n = {len(dft_vals2)}')
             
