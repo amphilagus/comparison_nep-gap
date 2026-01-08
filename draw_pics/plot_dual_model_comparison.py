@@ -620,7 +620,7 @@ def plot_dual_comparison_2x3(dft_data1_t5: Dict, lammps_data1_t5: Dict,
             if stats_lines:
                 stats_text = '\n'.join(stats_lines)
                 ax.text(0.05, 0.95, stats_text, transform=ax.transAxes,
-                       verticalalignment='top', fontsize=fontsize-1,
+                       verticalalignment='top', fontsize=fontsize-2,
                        bbox={'boxstyle': 'round', 'facecolor': 'white', 'alpha': 0.9})
             
             # 设置标签
