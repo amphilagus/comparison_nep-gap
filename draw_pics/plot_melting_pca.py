@@ -165,7 +165,7 @@ def calculate_r2(y_true, y_pred):
     return 1 - (ss_res / ss_tot) if ss_tot != 0 else 0
 
 
-def plot_energy_scatter(ax, dft_energies, lammps_energies, config_types, model_name, subplot_label=None):
+def plot_energy_scatter(ax, dft_energies, lammps_energies, config_types, model_name, subplot_label=None,fontsize=10):
     """Plot energy scatter with config_type coloring"""
     default_colors = plt.cm.tab10.colors
     
@@ -198,25 +198,26 @@ def plot_energy_scatter(ax, dft_energies, lammps_energies, config_types, model_n
     ax.plot([min_val, max_val], [min_val, max_val], 
            color='red', linewidth=1.5, linestyle='--', alpha=0.8)
     
-    ax.set_xlabel('DFT Energy (eV/atom)', fontsize=11)
-    ax.set_ylabel('LAMMPS Energy (eV/atom)', fontsize=11)
+    ax.set_xlabel('DFT Energy (eV/atom)', fontsize=fontsize, fontweight='bold')
+    ax.set_ylabel('LAMMPS Energy (eV/atom)', fontsize=fontsize, fontweight='bold')
     ax.grid(True, alpha=0.3)
-    ax.legend(loc='center right', fontsize=7)
+    if model_name == "tabGAP":
+        ax.legend(loc='lower right', fontsize=fontsize-1)
     
     # Add subplot label (a), (b), (c), (d)
     if subplot_label:
         ax.text(-0.1, 1.1, subplot_label, transform=ax.transAxes,
-               fontsize=22, fontweight='bold', ha='left', va='top')
+               fontsize=fontsize+3, fontweight='bold', ha='left', va='top')
     
     # Add model name as text inside plot
-    ax.text(0.95, 0.05, model_name, transform=ax.transAxes,
-           fontsize=11, fontweight='bold', ha='right', va='bottom',
-           bbox={'boxstyle': 'round', 'facecolor': 'white', 'alpha': 0.8})
+    # ax.text(0.95, 0.05, model_name, transform=ax.transAxes,
+    #        fontsize=fontsize, fontweight='bold', ha='right', va='bottom',
+    #        bbox={'boxstyle': 'round', 'facecolor': 'white', 'alpha': 0.8})
     
     # Add statistics
-    stats_text = f'RMSE={rmse:.4f}\nMAE={mae:.4f}\nR²={r2:.4f}'
+    stats_text = model_name+f'\nRMSE={rmse:.4f} eV/atom \nMAE={mae:.4f} eV/atom'
     ax.text(0.05, 0.95, stats_text, transform=ax.transAxes,
-           verticalalignment='top', fontsize=10,
+           verticalalignment='top', fontsize=fontsize,
            bbox={'boxstyle': 'round', 'facecolor': 'white', 'alpha': 0.8})
 
 
@@ -258,8 +259,8 @@ def read_xyz_config_types(filename):
 
 
 def merge_config_types(config_types):
-    """Merge: *GPa and v* -> newly_sampled"""
-    return ['newly_sampled' if (ct.endswith('GPa') or ct.startswith('v')) else ct 
+    """Merge: *GPa and v* -> augmented"""
+    return ['augmented' if (ct.endswith('GPa') or ct.startswith('v')) else ct 
             for ct in config_types]
 
 
@@ -272,8 +273,36 @@ def perform_pca(descriptors):
     return transformed, pca
 
 
-def plot_pca_panel(ax, pca_data, config_types, pca_obj, subplot_label=None):
+def plot_pca_panel(ax, pca_data, config_types, pca_obj, subplot_label=None,fontsize=10):
     """Plot PCA scatter"""
+    
+    # Configuration type mapping for cleaner legends
+    mapping_table = {
+        'bulk_beta_phase': r'$\beta$ phase',
+        'bulk_gamma_phase': r'$\gamma$ phase',
+        'bulk_alpha_phase': r'$\alpha$ phase',
+        'bulk_delta_phase': r'$\delta$ phase',
+        'bulk_epsilon_phase': r'$\epsilon$ phase',
+        'bulk_kappa_phase': r'$\kappa$ phase',
+        'bulk_bixbyite_phase': r'$\text{hex}^{*}$ phase',
+        'bulk_Pmc21_phase': r'$Pmc2_{1}$ phase',
+        'bulk_P-1_phase': r'$P\overline{1}$ phase',
+        'non_stoichiometry_GaO': r'GaO',
+        'non_stoichiometry_GaO2': r'GaO$_2$',
+        'non_stoichiometry_GaO3': r'GaO$_3$',
+        'non_stoichiometry_Ga3O5': r'Ga$_3$O$_5$',
+        'non_stoichiometry_Ga4O5': r'Ga$_4$O$_5$',
+        'twobody': r'dimer Ga-Ga/Ga-O/O-O',
+        'Ga_bulk': r'pure Ga',
+        'Otrimer': r'trimer O$_3$',
+        'RSS': r'random structure search',
+        'active_training': r'O clusters',
+        'melted_phase': r'melted',
+        'isolated_atom': r'isolated Ga/O atoms',
+        'close_3b_phase': r'close-3b phase',
+        'amorphous_phase': r'amorphous'
+    }
+
     unique_types = sorted(set(config_types))
     colors = plt.cm.tab10(np.linspace(0, 1, min(len(unique_types), 10)))
     if len(unique_types) > 10:
@@ -285,22 +314,23 @@ def plot_pca_panel(ax, pca_data, config_types, pca_obj, subplot_label=None):
         indices = [i for i, ct in enumerate(config_types) if ct == config_type]
         x = pca_data[indices, 0]
         y = pca_data[indices, 1]
+        display_name = mapping_table.get(config_type, config_type)
         ax.scatter(x, y, c=[color_map[config_type]], 
-                  label=f'{config_type} ({len(indices)})',
+                  label=f'{display_name}',
                   alpha=0.7, s=30, edgecolors='white', linewidths=0.5)
     
     var1 = pca_obj.explained_variance_ratio_[0] * 100
     var2 = pca_obj.explained_variance_ratio_[1] * 100
     
-    ax.set_xlabel(f'PC1 ({var1:.1f}%)', fontsize=11)
-    ax.set_ylabel(f'PC2 ({var2:.1f}%)', fontsize=11)
+    ax.set_xlabel(f'Principal Component 1', fontsize=fontsize, fontweight='bold')
+    ax.set_ylabel(f'Principal Component 2', fontsize=fontsize, fontweight='bold')
     ax.grid(True, alpha=0.3)
-    ax.legend(fontsize=7, loc='best')
+    ax.legend(fontsize=fontsize-1, loc='best')
     
     # Add subplot label (d)
     if subplot_label:
         ax.text(-0.1, 1.1, subplot_label, transform=ax.transAxes,
-               fontsize=22, fontweight='bold', ha='left', va='top')
+               fontsize=fontsize+3, fontweight='bold', ha='left', va='top')
 
 
 def run_lammps_for_model(test_xyz, forcefield, lammps_exe, workspace_root):
@@ -454,7 +484,7 @@ def main():
     
     if not args.no_merge:
         config_types = merge_config_types(config_types)
-        print(f"  Merged config types (*GPa, v* → newly_sampled)")
+        print(f"  Merged config types (*GPa, v* → augmented)")
     
     min_len = min(len(descriptors), len(config_types))
     pca_data, pca_obj = perform_pca(descriptors[:min_len])
@@ -466,8 +496,41 @@ def main():
     
     # Create figure
     print("\n[3/3] Generating figure...")
-    fig, axes = plt.subplots(2, 2, figsize=(16, 14))
-    axes = axes.flatten()
+    
+    from matplotlib.gridspec import GridSpec
+    
+    # Set font to Arial
+    plt.rcParams['font.family'] = 'Arial'
+    
+    # Ultra-fine grid settings
+    n = 100
+    x0 = 10 * n
+    y0 = 8 * n
+    dx = int(n * 2.5)  # Horizontal spacing
+    dy = int(n * 2.0)  # Vertical spacing
+    
+    M = 2 * x0 + dx
+    N = 2 * y0 + dy
+    
+    figsize = 10
+    fontsize = 10
+    fig = plt.figure(figsize=(figsize, N/(M/figsize)))
+    gs = GridSpec(N, M, figure=fig, width_ratios=np.ones(M), height_ratios=np.ones(N))
+    
+    # Create subplots manually
+    axes = []
+    
+    # (a) Top-Left
+    axes.append(fig.add_subplot(gs[0:y0, 0:x0]))
+    
+    # (b) Top-Right
+    axes.append(fig.add_subplot(gs[0:y0, x0+dx:2*x0+dx]))
+    
+    # (c) Bottom-Left
+    axes.append(fig.add_subplot(gs[y0+dy:2*y0+dy, 0:x0]))
+    
+    # (d) Bottom-Right
+    axes.append(fig.add_subplot(gs[y0+dy:2*y0+dy, x0+dx:2*x0+dx]))
     
     # Subplot labels
     subplot_labels = ['(a)', '(b)', '(c)', '(d)']
@@ -476,14 +539,14 @@ def main():
     for i in range(3):
         dft_e, lmp_e, configs = model_predictions[i]
         print(f"  Panel {i+1}: {args.names[i]} ({len(dft_e)} points)")
-        plot_energy_scatter(axes[i], dft_e, lmp_e, configs, args.names[i], subplot_labels[i])
+        plot_energy_scatter(axes[i], dft_e, lmp_e, configs, args.names[i], subplot_labels[i],fontsize=fontsize)
     
     # Plot PCA
     print(f"  Panel 4: PCA Analysis ({len(pca_data)} points)")
-    plot_pca_panel(axes[3], pca_data, config_types, pca_obj, subplot_labels[3])
+    plot_pca_panel(axes[3], pca_data, config_types, pca_obj, subplot_labels[3],fontsize=fontsize)
     
-    plt.tight_layout()
-    plt.savefig(args.output, dpi=300, bbox_inches='tight')
+    # plt.tight_layout()
+    plt.savefig(args.output, dpi=600, bbox_inches='tight')
     print(f"\n✓ Figure saved: {args.output}")
     
     print("\n" + "=" * 80)
