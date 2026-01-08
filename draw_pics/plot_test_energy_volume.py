@@ -616,6 +616,7 @@ def combine_data(structures, predicted_energies):
 
 def plot_energy_volume_comparison(data, output_filename, model_name="Model"):
     """Plot Model vs DFT energy-volume comparison"""
+    from matplotlib.gridspec import GridSpec
     
     # Group data by config_type
     data_by_type = defaultdict(list)
@@ -628,13 +629,63 @@ def plot_energy_volume_comparison(data, output_filename, model_name="Model"):
         
         data_by_type[config_type].append((volume_per_atom, predicted_energy, dft_energy))
     
-    # Set up figure - single plot
-    fig, ax1 = plt.subplots(1, 1, figsize=(10, 8))
+    # Set up figure using GridSpec for ultra-fine control
+    figsize = 10
+    fontsize = 10
+    
+    # Set font to Arial
+    plt.rcParams['font.family'] = 'Arial'
+    
+    # Use ultra-fine grid division
+    n = 100
+    x0 = 10 * n
+    y0 = 8 * n
+    
+    # Define margins and total size
+    # Add some margins around the plot
+    margin_x = int(1.5 * n)
+    margin_y = int(1.5 * n)
+    
+    M = x0 + 2 * margin_x
+    N = y0 + 2 * margin_y
+    
+    # Create figure and GridSpec
+    fig = plt.figure(figsize=(figsize, N/(M/figsize)))
+    gs = GridSpec(N, M, figure=fig, width_ratios=np.ones(M), height_ratios=np.ones(N))
+    
+    # Create subplot centered in the grid
+    ax1 = fig.add_subplot(gs[margin_y:margin_y+y0, margin_x:margin_x+x0])
     
     # Define colors and marker styles
     colors = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', '#8c564b', '#e377c2']
     markers = ['o', 's', '^', 'D', 'v', '<', '>', 'p', '*', 'h']
     
+    # Mapping table for config types
+    mapping_table = {'bulk_beta_phase': r'$\beta$ phase',
+                'bulk_gamma_phase': r'$\gamma$ phase',
+                'bulk_alpha_phase': r'$\alpha$ phase',
+                'bulk_delta_phase': r'$\delta$ phase',
+                'bulk_epsilon_phase': r'$\epsilon$ phase',
+                'bulk_kappa_phase': r'$\kappa$ phase',
+                'bulk_bixbyite_phase': r'$\text{hex}^{*}$ phase',
+                'bulk_Pmc21_phase': r'$Pmc2_{1}$ phase',
+                'bulk_P-1_phase': r'$P\overline{1}$ phase',
+                'non_stoichiometry_GaO': r'GaO',
+                'non_stoichiometry_GaO2': r'GaO$_2$',
+                'non_stoichiometry_GaO3': r'GaO$_3$',
+                'non_stoichiometry_Ga3O5': r'Ga$_3$O$_5$',
+                'non_stoichiometry_Ga4O5': r'Ga$_4$O$_5$',
+                'twobody': r'dimer Ga-Ga/Ga-O/O-O',
+                'Ga_bulk': r'pure Ga',
+                'Otrimer': r'trimer O$_3$',
+                'RSS': r'random structure search',
+                'active_training': r'O clusters',
+                'melted_phase': r'melted phase',
+                'isolated_atom': r'isolated Ga/O atoms',
+                'close_3b_phase': r'close-3b phase',
+                'amorphous_phase': r'amorphous phase',
+                }
+
     # Calculate statistics for all data
     all_predicted = []
     all_dft = []
@@ -664,17 +715,20 @@ def plot_energy_volume_comparison(data, output_filename, model_name="Model"):
         color = colors[i % len(colors)]
         marker = markers[i % len(markers)]
         
+        # Get display name from mapping table
+        display_name = mapping_table.get(config_type, config_type)
+        
         # Model data points and lines
         ax1.scatter(volumes, predicted_energies, 
                    color=color, marker=marker, s=60, alpha=0.8,
-                   label=f'{config_type} {model_name} ({len(data_points)})')
+                   label=f'{display_name} {model_name} ({len(data_points)})')
         if len(data_points) > 1:
             ax1.plot(volumes, predicted_energies, color=color, alpha=0.6, linewidth=1.5, linestyle='-')
         
         # DFT data points and lines
         ax1.scatter(volumes, dft_energies, 
                    color=color, marker=marker, s=60, alpha=0.5, facecolors='none', edgecolors=color,
-                   label=f'{config_type} DFT ({len(data_points)})')
+                   label=f'{display_name} DFT ({len(data_points)})')
         if len(data_points) > 1:
             ax1.plot(volumes, dft_energies, color=color, alpha=0.4, linewidth=1.5, linestyle='--')
     
@@ -691,17 +745,18 @@ def plot_energy_volume_comparison(data, output_filename, model_name="Model"):
         stats_text = f'MAE: {mae:.4f} eV/atom\nRMSE: {rmse:.4f} eV/atom\nR²: {r2:.4f}'
         ax1.text(0.02, 0.98, stats_text, transform=ax1.transAxes, 
                 verticalalignment='top', bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.8),
-                fontsize=11)
+                fontsize=fontsize)
     
-    ax1.set_xlabel('Volume per atom (Å³/atom)', fontsize=12)
-    ax1.set_ylabel('Energy per atom (eV/atom)', fontsize=12)
-    ax1.set_title(f'{model_name} vs DFT: Energy-Volume Curves', fontsize=14, fontweight='bold')
+    ax1.set_xlabel('Volume per atom (Å³/atom)', fontsize=fontsize, fontweight='bold')
+    ax1.set_ylabel('Energy per atom (eV/atom)', fontsize=fontsize, fontweight='bold')
+    ax1.set_title(f'{model_name} vs DFT: Energy-Volume Curves', fontsize=fontsize+5, fontweight='bold')
     ax1.grid(True, alpha=0.3)
-    ax1.legend(bbox_to_anchor=(1.05, 1), loc='upper left', fontsize=9)
-    # ax1.legend(fontsize=9)
+    ax1.tick_params(axis='both', labelsize=fontsize)
+    ax1.legend(bbox_to_anchor=(1.05, 1), loc='upper left', fontsize=fontsize)
     
-    # Adjust layout
-    plt.tight_layout()
+    # Adjust layout - no longer needed with GridSpec as we controlled margins manually
+    # but bbox_inches='tight' in savefig will help trim extra white space
+
     
     # Save figure
     plt.savefig(output_filename, dpi=300, bbox_inches='tight')
@@ -751,6 +806,8 @@ def plot_multi_model_comparison(multi_model_data, output_filename, model_names=N
         output_filename: Output file path
         model_names: List of model names (optional)
     """
+    from matplotlib.gridspec import GridSpec
+
     if model_names is None:
         model_names = [f"Model {i+1}" for i in range(len(multi_model_data))]
     
@@ -779,8 +836,29 @@ def plot_multi_model_comparison(multi_model_data, output_filename, model_names=N
             
             models_by_config[config_type][vol_key]['models'][model_idx] = predicted_energy
     
-    # Set up figure
-    fig, ax = plt.subplots(1, 1, figsize=(12, 8))
+    # Set up figure using GridSpec
+    figsize = 10
+    fontsize = 14
+    
+    # Set font to Arial
+    plt.rcParams['font.family'] = 'Arial'
+    
+    # Use ultra-fine grid division
+    n = 100
+    x0 = 10 * n
+    y0 = 7 * n
+    
+    # Define total size
+   
+    M = x0 
+    N = y0
+    
+    # Create figure and GridSpec
+    fig = plt.figure(figsize=(figsize, N/(M/figsize)))
+    gs = GridSpec(N, M, figure=fig, width_ratios=np.ones(M), height_ratios=np.ones(N))
+    
+    # Create subplot
+    ax = fig.add_subplot(gs[0:y0, 0:x0])
     
     # Define colors for config types (consistent across all models)
     config_colors = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', '#8c564b', '#e377c2']
@@ -791,12 +869,41 @@ def plot_multi_model_comparison(multi_model_data, output_filename, model_names=N
     # Define line styles for different models
     model_linestyles = ['-', '--', '-.', ':', (0, (3, 1, 1, 1))]
     
+    # Mapping table for config types
+    mapping_table = {'bulk_beta_phase': r'$\beta$ phase',
+                'bulk_gamma_phase': r'$\gamma$ phase',
+                'bulk_alpha_phase': r'$\alpha$ phase',
+                'bulk_delta_phase': r'$\delta$ phase',
+                'bulk_epsilon_phase': r'$\epsilon$ phase',
+                'bulk_kappa_phase': r'$\kappa$ phase',
+                'bulk_bixbyite_phase': r'$\text{hex}^{*}$ phase',
+                'bulk_Pmc21_phase': r'$Pmc2_{1}$ phase',
+                'bulk_P-1_phase': r'$P\overline{1}$ phase',
+                'non_stoichiometry_GaO': r'GaO',
+                'non_stoichiometry_GaO2': r'GaO$_2$',
+                'non_stoichiometry_GaO3': r'GaO$_3$',
+                'non_stoichiometry_Ga3O5': r'Ga$_3$O$_5$',
+                'non_stoichiometry_Ga4O5': r'Ga$_4$O$_5$',
+                'twobody': r'dimer Ga-Ga/Ga-O/O-O',
+                'Ga_bulk': r'pure Ga',
+                'Otrimer': r'trimer O$_3$',
+                'RSS': r'random structure search',
+                'active_training': r'O clusters',
+                'melted_phase': r'melted phase',
+                'isolated_atom': r'isolated Ga/O atoms',
+                'close_3b_phase': r'close-3b phase',
+                'amorphous_phase': r'amorphous phase',
+                }
+    
     # Statistics collection
     all_stats = {i: {'predicted': [], 'dft': []} for i in range(len(multi_model_data))}
     
     # Plot data by config type
     for config_idx, (config_type, vol_dict) in enumerate(sorted(models_by_config.items())):
         color = config_colors[config_idx % len(config_colors)]
+        
+        # Get display name
+        display_name = mapping_table.get(config_type, config_type)
         
         # Sort by volume
         sorted_data = sorted(vol_dict.items(), key=lambda x: x[1]['volume'])
@@ -808,7 +915,7 @@ def plot_multi_model_comparison(multi_model_data, output_filename, model_names=N
         ax.scatter(volumes, dft_energies, 
                   color=color, marker='o', s=80, alpha=0.6, 
                   facecolors='none', edgecolors=color, linewidths=2,
-                  label=f'{config_type} DFT', zorder=10)
+                  label=f'{display_name} DFT', zorder=10)
         if len(volumes) > 1:
             ax.plot(volumes, dft_energies, color=color, alpha=0.3, 
                    linewidth=2, linestyle=':', zorder=5)
@@ -834,7 +941,7 @@ def plot_multi_model_comparison(multi_model_data, output_filename, model_names=N
             linestyle = model_linestyles[model_idx % len(model_linestyles)]
             
             # Add label for each config_type and model combination
-            label = f'{config_type} {model_names[model_idx]}'
+            label = f'{display_name} {model_names[model_idx]}'
             
             ax.scatter(model_volumes, model_energies, 
                       color=color, marker=marker, s=60, alpha=0.8,
@@ -843,14 +950,16 @@ def plot_multi_model_comparison(multi_model_data, output_filename, model_names=N
                 ax.plot(model_volumes, model_energies, color=color, 
                        alpha=0.7, linewidth=1.5, linestyle=linestyle, zorder=7)
     
-    ax.set_xlabel('Volume per atom (Å³/atom)', fontsize=13)
-    ax.set_ylabel('Energy per atom (eV/atom)', fontsize=13)
+    ax.set_xlabel('Volume per atom (Å³/atom)', fontsize=fontsize, fontweight='bold')
+    ax.set_ylabel('Energy per atom (eV/atom)', fontsize=fontsize, fontweight='bold')
     ax.grid(True, alpha=0.3)
+    ax.tick_params(axis='both', labelsize=fontsize)
     # ax.legend(bbox_to_anchor=(1.05, 1), loc='upper left', fontsize=10, ncol=1)
-    ax.legend(fontsize=10)
+    ax.legend(fontsize=fontsize-6)
 
-    plt.tight_layout()
-    plt.savefig(output_filename, dpi=300, bbox_inches='tight')
+    # plt.tight_layout()
+
+    plt.savefig(output_filename, dpi=600, bbox_inches='tight')
     print(f"\nMulti-model comparison plot saved to: {output_filename}")
     
     # Print detailed statistics
