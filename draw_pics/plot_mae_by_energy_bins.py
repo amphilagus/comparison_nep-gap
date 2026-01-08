@@ -179,12 +179,31 @@ def plot_combined_analysis(mae_data: List[np.ndarray],
     eV_to_meV = 1000.0
     mae_data_meV = [mae * eV_to_meV for mae in mae_data]
     
-    # Create figure with 2 subplots (2 rows, 1 column)
-    fig = plt.figure(figsize=(12, 12))
-    gs = fig.add_gridspec(2, 1, height_ratios=[1, 1], hspace=0.3)
+    from matplotlib.gridspec import GridSpec
+
+    # 设置基础尺寸
+    figsize = 10
+    fontsize = 14
+    
+    # 设置字体为 Arial
+    plt.rcParams['font.family'] = 'Arial'
+
+    # 使用超精细网格划分方式
+    n = 100
+    x0 = 10 * n
+    y0 = 6 * n  # 上图高度
+    y1 = 6 * n  # 下图高度
+    dy = int(1 * n)  # 间距
+    
+    M = x0
+    N = y0 + dy + y1
+    
+    # 创建figure和GridSpec
+    fig = plt.figure(figsize=(figsize, N/(M/figsize)))
+    gs = GridSpec(N, M, figure=fig, width_ratios=np.ones(M), height_ratios=np.ones(N))
     
     # ========== Subplot 1: Rescale Factor Diagram ==========
-    ax1 = fig.add_subplot(gs[0])
+    ax1 = fig.add_subplot(gs[0:y0, 0:int(0.8*x0)])
     
     energies = train_xyz_data['energies']
     config_types = train_xyz_data['config_types']
@@ -210,13 +229,13 @@ def plot_combined_analysis(mae_data: List[np.ndarray],
     
     # Set log scale for y-axis
     ax1.set_yscale('log')
-    ax1.set_xlabel('Average Energy (eV/atom)', fontsize=12, fontweight='bold')
-    ax1.set_ylabel('Rescale Factor', fontsize=12, fontweight='bold')
+    ax1.set_xlabel('Average Energy (eV/atom)', fontsize=fontsize, fontweight='bold')
+    ax1.set_ylabel('Rescale Factor', fontsize=fontsize, fontweight='bold')
     ax1.grid(True, alpha=0.3)
     
     # Create twin axis for config_type
     ax1_twin = ax1.twinx()
-    # ax1_twin.set_ylabel('Config Type', fontsize=12, fontweight='bold', color='gray')
+    # ax1_twin.set_ylabel('Config Type', fontsize=fontsize, fontweight='bold', color='gray')
     
     # Plot config_type scatter points
     for ct in unique_config_types:
@@ -228,17 +247,47 @@ def plot_combined_analysis(mae_data: List[np.ndarray],
                         alpha=0.6, s=20, zorder=2, label=ct if len(unique_config_types) <= 10 else None)
     
     ax1_twin.set_yticks(range(len(unique_config_types)))
-    ax1_twin.set_yticklabels(unique_config_types, fontsize=8)
-    ax1_twin.tick_params(axis='y', labelcolor='gray')
     
+    mapping_table = {'bulk_beta_phase': r'$\beta$ phase',
+                    'bulk_gamma_phase': r'$\gamma$ phase',
+                    'bulk_alpha_phase': r'$\alpha$ phase',
+                    'bulk_delta_phase': r'$\delta$ phase',
+                    'bulk_epsilon_phase': r'$\epsilon$ phase',
+                    'bulk_kappa_phase': r'$\kappa$ phase',
+                    'bulk_bixbyite_phase': r'$\text{hex}^{*}$ phase',
+                    'bulk_Pmc21_phase': r'$Pmc2_{1}$ phase',
+                    'bulk_P-1_phase': r'$P\overline{1}$ phase',
+                    'non_stoichiometry_GaO': r'GaO',
+                    'non_stoichiometry_GaO2': r'GaO$_2$',
+                    'non_stoichiometry_GaO3': r'GaO$_3$',
+                    'non_stoichiometry_Ga3O5': r'Ga$_3$O$_5$',
+                    'non_stoichiometry_Ga4O5': r'Ga$_4$O$_5$',
+                    'twobody': r'dimer Ga-Ga/Ga-O/O-O',
+                    'Ga_bulk': r'pure Ga',
+                    'Otrimer': r'trimer O$_3$',
+                    'RSS': r'random structure search',
+                    'active_training': r'O clusters',
+                    'melted_phase': r'melted phase',
+                    'isolated_atom': r'isolated Ga/O atoms',
+                    'close_3b_phase': r'close-3b phase',
+                    'amorphous_phase': r'amorphous phase',
+                    }
+
+    plot_types = unique_config_types.copy()
+    for i in range(len(plot_types)):
+        if plot_types[i] in mapping_table:
+            plot_types[i] = mapping_table[plot_types[i]]
+            
+    ax1_twin.set_yticklabels(plot_types, fontsize=fontsize-3, rotation=-30)
+    ax1_twin.tick_params(axis='y', labelcolor='gray')
+    ax1.tick_params(axis='both', labelsize=fontsize)
     # Add title and subplot label
-    ax1.set_title(f'Weight Rescale Function (ε={epsilon}, α={alpha})', 
-                 fontsize=14, fontweight='bold')
+    # ax1.set_title(f'Weight Rescale Function (ε={epsilon}, α={alpha})', fontsize=fontsize+3, fontweight='bold')
     ax1.text(-0.08, 1.05, '(a)', transform=ax1.transAxes,
-            fontsize=18, fontweight='bold', ha='left', va='top')
+            fontsize=fontsize+5, fontweight='bold', ha='left', va='top')
     
     # ========== Subplot 2: MAE Bar Chart ==========
-    ax2 = fig.add_subplot(gs[1])
+    ax2 = fig.add_subplot(gs[y0+dy:N, 0:x0])
     
     # Bar positions
     x = np.arange(n_bins)
@@ -260,24 +309,24 @@ def plot_combined_analysis(mae_data: List[np.ndarray],
                 height = bar.get_height()
                 ax2.text(bar.get_x() + bar.get_width()/2., height,
                         f'{val:.1f}',
-                        ha='center', va='bottom', fontsize=9, fontweight='bold')
+                        ha='center', va='bottom', fontsize=fontsize, fontweight='bold')
     
     # Customize plot
-    ax2.set_xlabel('Energy Range (relative to E_min)', fontsize=14, fontweight='bold')
-    ax2.set_ylabel('MAE (meV/atom)', fontsize=14, fontweight='bold')
-    ax2.set_title('Energy MAE Comparison by Energy Bins', fontsize=14, fontweight='bold')
+    ax2.set_xlabel('Energy Range (relative to E_min)', fontsize=fontsize, fontweight='bold')
+    ax2.set_ylabel('MAE (meV/atom)', fontsize=fontsize, fontweight='bold')
+    # ax2.set_title('Energy MAE Comparison by Energy Bins', fontsize=fontsize+3, fontweight='bold')
     ax2.set_xticks(x)
-    ax2.set_xticklabels(bin_labels, fontsize=11)
-    ax2.legend(loc='upper left', fontsize=12, framealpha=0.9)
+    ax2.set_xticklabels(bin_labels, fontsize=fontsize)
+    ax2.legend(loc='upper left', fontsize=fontsize, framealpha=0.9)
     ax2.grid(axis='y', alpha=0.3, linestyle='--')
     ax2.set_ylim(bottom=0)
-    
+    ax2.tick_params(axis='both', labelsize=fontsize)
     # Add subplot label
     ax2.text(-0.08, 1.05, '(b)', transform=ax2.transAxes,
-            fontsize=18, fontweight='bold', ha='left', va='top')
+            fontsize=fontsize+5, fontweight='bold', ha='left', va='top')
     
     # Save figure
-    plt.savefig(output_file, dpi=300, bbox_inches='tight')
+    plt.savefig(output_file, dpi=600, bbox_inches='tight')
     print(f"\nPlot saved to: {output_file}")
     
     # Print summary table

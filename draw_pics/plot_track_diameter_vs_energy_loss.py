@@ -43,6 +43,7 @@ import argparse
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
+from matplotlib.gridspec import GridSpec
 from pathlib import Path
 from typing import Dict, List, Tuple
 
@@ -98,33 +99,32 @@ def plot_track_diameter_comparison(
         theoretical_label: str = "MD Simulation (This Work)",
         experimental1_label: str = "Experimental Data 1",
         experimental2_label: str = "Experimental Data 2",
-        show_grid: bool = True,
-        font_scale: float = 1.0):
+        show_grid: bool = True):
     """
-    Plot track diameter vs energy loss comparison
-    
-    Args:
-        theoretical_data: Tuple of (energy_loss, diameter, error) for theoretical data
-        experimental_data1: Tuple of (energy_loss, diameter, error) for experimental data 1
-        experimental_data2: Tuple of (energy_loss, diameter, error) for experimental data 2
-        output_file: Output file path
-        title: Plot title (optional)
-        xlabel: X-axis label
-        ylabel: Y-axis label
-        theoretical_label: Label for theoretical data
-        experimental1_label: Label for experimental data 1
-        experimental2_label: Label for experimental data 2
-        show_grid: Whether to show grid
-        font_scale: Font size scaling factor (default: 1.0)
+    Plot track diameter vs energy loss comparison using ultra-fine grid
     """
-    # Font sizes (base sizes that will be scaled)
-    FONTSIZE_AXIS_LABEL = int(14 * font_scale)
-    FONTSIZE_TITLE = int(16 * font_scale)
-    FONTSIZE_LEGEND = int(12 * font_scale)
-    FONTSIZE_TICK = int(11 * font_scale)
+    # Professional styling
+    plt.rcParams['font.family'] = 'Arial'
+
+    figsize = 10
+    fontsize = 14
     
-    # Create figure
-    fig, ax = plt.subplots(figsize=(10, 6))
+    # Ultra-fine grid division
+    n = 100
+    x0 = 10 * n
+    y0 = 6 * n
+    
+    # Define total size
+    
+    M = x0
+    N = y0
+    
+    # Create figure and GridSpec
+    fig = plt.figure(figsize=(figsize, N/(M/figsize)))
+    gs = GridSpec(N, M, figure=fig, width_ratios=np.ones(M), height_ratios=np.ones(N))
+    
+    # Create subplot
+    ax = fig.add_subplot(gs[0:y0, 0:x0])
     
     # Colors and markers matching project style
     color_theory = '#3498db'      # Blue for theoretical
@@ -163,30 +163,27 @@ def plot_track_diameter_comparison(
                    elinewidth=1.5, capthick=1.5)
     
     # Customize axes
-    ax.set_xlabel(xlabel, fontsize=FONTSIZE_AXIS_LABEL, fontweight='bold')
-    ax.set_ylabel(ylabel, fontsize=FONTSIZE_AXIS_LABEL, fontweight='bold')
+    ax.set_xlabel(xlabel, fontsize=fontsize, fontweight='bold')
+    ax.set_ylabel(ylabel, fontsize=fontsize, fontweight='bold')
     
     # Set title
     if title:
-        ax.set_title(title, fontsize=FONTSIZE_TITLE, fontweight='bold', pad=20)
+        ax.set_title(title, fontsize=fontsize, fontweight='bold', pad=15)
     
     # Grid
     if show_grid:
         ax.grid(True, alpha=0.3, linestyle='--', which='both')
     
     # Legend
-    ax.legend(loc='best', fontsize=FONTSIZE_LEGEND, framealpha=0.9,
+    ax.legend(loc='best', fontsize=fontsize, framealpha=0.9,
              edgecolor='black', fancybox=True)
     
     # Format ticks
-    ax.tick_params(axis='both', labelsize=FONTSIZE_TICK)
+    ax.tick_params(axis='both', labelsize=fontsize)
     
     # Set axes to start from 0
     ax.set_xlim(left=10)
     ax.set_ylim(bottom=0)
-    
-    # Tight layout
-    plt.tight_layout()
     
     # Save figure
     plt.savefig(output_file, dpi=300, bbox_inches='tight')
@@ -271,20 +268,20 @@ Examples:
     parser.add_argument(
         "--theoretical-label",
         type=str,
-        default="MD Simulation (This Work)",
+        default="MD   (this work)",
         help="Label for theoretical data (default: MD Simulation (This Work))"
     )
     parser.add_argument(
         "--experimental1-label",
         type=str,
-        default="Experimental Data 1",
-        help="Label for experimental data 1 (default: Experimental Data 1)"
+        default="TEM (Ai $\mathit{et\ al.}$) ",
+        help="Label for experimental data 1 (default: Ai et al. TEM)"
     )
     parser.add_argument(
         "--experimental2-label",
         type=str,
-        default="Experimental Data 2",
-        help="Label for experimental data 2 (default: Experimental Data 2)"
+        default="TEM (Xu $\mathit{et\ al.}$ )",
+        help="Label for experimental data 2 (default: Xu et al. TEM)"
     )
     
     # Output and appearance
@@ -383,7 +380,7 @@ Examples:
     
     # Plot results
     print("\n" + "=" * 80)
-    print("Generating plot...")
+    print("Generating plot with ultra-fine grid...")
     print("=" * 80)
     
     plot_track_diameter_comparison(
@@ -397,8 +394,7 @@ Examples:
         theoretical_label=args.theoretical_label,
         experimental1_label=args.experimental1_label,
         experimental2_label=args.experimental2_label,
-        show_grid=not args.no_grid,
-        font_scale=args.font_scale
+        show_grid=not args.no_grid
     )
     
     print("\n" + "=" * 80)

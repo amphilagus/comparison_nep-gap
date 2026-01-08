@@ -3,7 +3,7 @@
 Computational Throughput Comparison
 
 This script plots computational throughput (million atom steps/s) vs. number of atoms
-for different molecular dynamics potential models (e.g., NEP, TabGAP).
+for different molecular dynamics potential models (e.g., NEP, tabGAP).
 
 Key Features:
 - Log-scale x-axis for number of atoms
@@ -14,10 +14,10 @@ Usage:
     uv run python scripts/plot_throughput_comparison.py [options]
 
 Examples:
-    # Compare NEP and TabGAP throughput
+    # Compare NEP and tabGAP throughput
     uv run python scripts/plot_throughput_comparison.py \\
         -d NEP 10000 245.3 100000 156.8 1000000 89.2 10000000 45.6 \\
-        -d TabGAP 10000 128.5 100000 82.1 1000000 48.3 10000000 23.7 \\
+        -d tabGAP 10000 128.5 100000 82.1 1000000 48.3 10000000 23.7 \\
         -o throughput_comparison.png
     
     # Single model throughput
@@ -29,7 +29,7 @@ Examples:
     uv run python scripts/plot_throughput_comparison.py \\
         -d NEP-4.5.0 10000 245.3 100000 156.8 1000000 89.2 10000000 45.6 \\
         -d NEP-3.3.0 10000 230.1 100000 148.5 1000000 85.3 10000000 43.2 \\
-        -d TabGAP 10000 128.5 100000 82.1 1000000 48.3 10000000 23.7 \\
+        -d tabGAP 10000 128.5 100000 82.1 1000000 48.3 10000000 23.7 \\
         --title "MD Performance Comparison on NVIDIA A100" \\
         -o throughput_3models.png
 """
@@ -37,45 +37,10 @@ Examples:
 import argparse
 import numpy as np
 import matplotlib.pyplot as plt
+from matplotlib.gridspec import GridSpec
 from pathlib import Path
 from typing import List, Tuple, Dict
-
-
-def parse_data_input(data_args: List[str]) -> List[Dict]:
-    """
-    Parse input data from command line arguments
-    
-    Args:
-        data_args: List of data strings, each starting with model name followed by (n_atoms, throughput) pairs
-    
-    Returns:
-        List of dicts with 'name', 'n_atoms', and 'throughput' keys
-    
-    Example:
-        ["NEP", "10000", "245.3", "100000", "156.8", ...]
-    """
-    datasets = []
-    
-    for data_str in data_args:
-        parts = data_str.split()
-        if len(parts) < 3 or (len(parts) - 1) % 2 != 0:
-            raise ValueError(f"Invalid data format: {data_str}. Expected: name n_atoms1 throughput1 n_atoms2 throughput2 ...")
-        
-        model_name = parts[0]
-        n_atoms = []
-        throughput = []
-        
-        for i in range(1, len(parts), 2):
-            n_atoms.append(float(parts[i]))
-            throughput.append(float(parts[i+1]))
-        
-        datasets.append({
-            'name': model_name,
-            'n_atoms': np.array(n_atoms),
-            'throughput': np.array(throughput)
-        })
-    
-    return datasets
+import pandas as pd
 
 
 def plot_throughput_comparison(datasets: List[Dict],
@@ -83,91 +48,82 @@ def plot_throughput_comparison(datasets: List[Dict],
                                title: str = None,
                                xlabel: str = "Number of Atoms",
                                ylabel: str = "Throughput (million atom-steps/s)",
-                               show_grid: bool = True,
-                               font_scale: float = 1.0):
+                               show_grid: bool = True):
     """
-    Plot throughput comparison across different models
-    
-    Args:
-        datasets: List of dicts with 'name', 'n_atoms', and 'throughput' keys
-        output_file: Output file path
-        title: Plot title (optional)
-        xlabel: X-axis label
-        ylabel: Y-axis label
-        show_grid: Whether to show grid
-        font_scale: Font size scaling factor (default: 1.0)
+    Plot throughput comparison across different models using ultra-fine grid
     """
-    n_models = len(datasets)
+    # Professional styling
+    plt.rcParams['font.family'] = 'Arial'
+    figsize = 10
+    fontsize = 14
     
-    # Font sizes (base sizes that will be scaled)
-    FONTSIZE_DATA_LABEL = int(9 * font_scale)
-    FONTSIZE_AXIS_LABEL = int(14 * font_scale)
-    FONTSIZE_TITLE = int(16 * font_scale)
-    FONTSIZE_LEGEND = int(12 * font_scale)
-    FONTSIZE_TICK = int(11 * font_scale)
+    # Ultra-fine grid division
+    n = 100
+    x0 = 10 * n
+    y0 = 6 * n
     
-    # Create figure
-    fig, ax = plt.subplots(figsize=(10, 6))
+    # Define margins and total size
+    M = x0
+    N = y0
     
-    # Colors and markers matching project style
-    colors = ['#3498db', '#e74c3c', '#2ecc71', '#f39c12', '#9b59b6', '#1abc9c']
-    markers = ['o', 's', '^', 'D', 'v', 'p']
-    linestyles = ['-', '--', '-.', ':', '-', '--']
+    # Create figure and GridSpec
+    fig = plt.figure(figsize=(figsize, N/(M/figsize)))
+    gs = GridSpec(N, M, figure=fig, width_ratios=np.ones(M), height_ratios=np.ones(N))
+    
+    # Create subplot
+    ax = fig.add_subplot(gs[0:y0, 0:x0])
+    
+    # Colors and markers
+    colors = {'NEP': '#e74c3c', 'tabGAP': '#3498db'}
+    markers = {'NEP': 'o', 'tabGAP': 's'}
+    linestyles = {'NEP': '-', 'tabGAP': '--'}
     
     # Plot each model
-    for i, data in enumerate(datasets):
+    for data in datasets:
         model_name = data['name']
         n_atoms = data['n_atoms']
-        throughput = data['throughput']
+        throughput_mean = data['throughput_mean']
+        throughput_std = data['throughput_std']
         
-        color = colors[i % len(colors)]
-        marker = markers[i % len(markers)]
-        linestyle = linestyles[i % len(linestyles)]
+        color = colors.get(model_name, '#2ecc71')
+        marker = markers.get(model_name, '^')
+        linestyle = linestyles.get(model_name, '-')
         
-        # Plot line and markers
-        ax.plot(n_atoms, throughput, 
-               color=color, marker=marker, linestyle=linestyle,
-               markersize=10, linewidth=2.5, 
-               label=model_name, alpha=0.9)
+        # Plot line with error bars
+        ax.errorbar(n_atoms, throughput_mean, yerr=throughput_std,
+                   color=color, marker=marker, linestyle=linestyle,
+                   markersize=8, linewidth=2, capsize=4,
+                   label=model_name, alpha=0.9)
         
-        # Add value labels on data points
-        for x, y in zip(n_atoms, throughput):
-            ax.text(x, y + 0.5, f'{y:.1f}', 
+        # Add value labels
+        for x, y in zip(n_atoms, throughput_mean):
+            ax.text(x, y * 1.05, f'{y:.1f}', 
                    ha='center', va='bottom', 
-                   fontsize=FONTSIZE_DATA_LABEL, fontweight='bold',
+                   fontsize=fontsize, fontweight='bold',
                    color=color)
     
     # Set log scale for x-axis
     ax.set_xscale('log')
     
     # Customize axes
-    ax.set_xlabel(xlabel, fontsize=FONTSIZE_AXIS_LABEL, fontweight='bold')
-    ax.set_ylabel(ylabel, fontsize=FONTSIZE_AXIS_LABEL, fontweight='bold')
+    ax.set_xlabel(xlabel, fontsize=fontsize, fontweight='bold')
+    ax.set_ylabel(ylabel, fontsize=fontsize, fontweight='bold')
     
-    # Set title
-    if title:
-        ax.set_title(title, fontsize=FONTSIZE_TITLE, fontweight='bold', pad=20)
+    # if title:
+    #     ax.set_title(title, fontsize=fontsize, fontweight='bold', pad=15)
     
-    # Grid
-    if show_grid:
-        ax.grid(True, alpha=0.3, linestyle='--', which='both')
+    ax.grid(True, alpha=0.3, linestyle='--', which='both')
+    ax.tick_params(axis='both', labelsize=fontsize)
     
     # Legend
-    ax.legend(loc='upper left', fontsize=FONTSIZE_LEGEND, framealpha=0.9, 
-             edgecolor='black', fancybox=True)
+    ax.legend(loc='upper left', fontsize=fontsize)
     
-    # Format x-axis ticks
-    ax.tick_params(axis='both', labelsize=FONTSIZE_TICK)
-    
-    # Set y-axis to start from 0
-    y_max = max([max(data['throughput']) for data in datasets])
-    ax.set_ylim(bottom=0, top=y_max * 1.15)
-    
-    # Tight layout
-    plt.tight_layout()
+    # Set y-axis limits
+    y_max = max([max(data['throughput_mean'] + data['throughput_std']) for data in datasets])
+    ax.set_ylim(bottom=0, top=y_max * 1.25)
     
     # Save figure
-    plt.savefig(output_file, dpi=300, bbox_inches='tight')
+    plt.savefig(output_file, dpi=600, bbox_inches='tight')
     print(f"\nPlot saved to: {output_file}")
     
     # Print summary table
@@ -192,7 +148,7 @@ def plot_throughput_comparison(datasets: List[Dict],
     # Data rows
     for data in datasets:
         row = f"{data['name']:<20}"
-        n_atoms_dict = {n: t for n, t in zip(data['n_atoms'], data['throughput'])}
+        n_atoms_dict = {n: t for n, t in zip(data['n_atoms'], data['throughput_mean'])}
         for n in all_n_atoms:
             if n in n_atoms_dict:
                 row += f" {n_atoms_dict[n]:>13.2f} "
@@ -203,79 +159,57 @@ def plot_throughput_comparison(datasets: List[Dict],
     print("=" * 100)
     
     # Calculate and print speedup ratios if multiple models
-    if n_models > 1:
+    if len(datasets) > 1:
         print("\n" + "=" * 100)
-        print("Speedup Ratios (relative to first model)")
+        print("Speedup Ratios (relative to tabGAP)")
         print("=" * 100)
         
-        baseline = datasets[0]
-        baseline_dict = {n: t for n, t in zip(baseline['n_atoms'], baseline['throughput'])}
+        # Find tabGAP as baseline
+        baseline = None
+        for data in datasets:
+            if data['name'] == 'tabGAP':
+                baseline = data
+                break
         
-        header = f"{'Model':<20}"
-        for n in all_n_atoms:
-            if n >= 1e6:
-                header += f" {n/1e6:.1f}M atoms".ljust(15)
-            elif n >= 1e3:
-                header += f" {n/1e3:.1f}K atoms".ljust(15)
-            else:
-                header += f" {int(n)} atoms".ljust(15)
-        print(header)
-        print("=" * 100)
-        
-        for i, data in enumerate(datasets):
-            if i == 0:
+        if baseline:
+            baseline_dict = {n: t for n, t in zip(baseline['n_atoms'], baseline['throughput_mean'])}
+            
+            header = f"{'Model':<20}"
+            for n in all_n_atoms:
+                if n >= 1e6:
+                    header += f" {n/1e6:.1f}M atoms".ljust(15)
+                elif n >= 1e3:
+                    header += f" {n/1e3:.1f}K atoms".ljust(15)
+                else:
+                    header += f" {int(n)} atoms".ljust(15)
+            print(header)
+            print("=" * 100)
+            
+            for data in datasets:
                 row = f"{data['name']:<20}"
+                n_atoms_dict = {n: t for n, t in zip(data['n_atoms'], data['throughput_mean'])}
                 for n in all_n_atoms:
-                    row += " " + "1.00x".rjust(13) + " "
-                print(row)
-            else:
-                row = f"{data['name']:<20}"
-                n_atoms_dict = {n: t for n, t in zip(data['n_atoms'], data['throughput'])}
-                for n in all_n_atoms:
-                    if n in n_atoms_dict and n in baseline_dict:
+                    if n in n_atoms_dict and n in baseline_dict and baseline_dict[n] > 0:
                         ratio = n_atoms_dict[n] / baseline_dict[n]
                         row += f" {ratio:>12.2f}x "
                     else:
                         row += " " + "N/A".rjust(13) + " "
                 print(row)
-        
-        print("=" * 100)
+            
+            print("=" * 100)
 
 
 def main():
     parser = argparse.ArgumentParser(
         description="Plot Computational Throughput Comparison",
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog="""
-Examples:
-  # Compare NEP and TabGAP throughput
-  uv run python scripts/plot_throughput_comparison.py \\
-    -d "NEP 10000 245.3 100000 156.8 1000000 89.2 10000000 45.6" \\
-    -d "TabGAP 10000 128.5 100000 82.1 1000000 48.3 10000000 23.7" \\
-    -o throughput_comparison.png
-  
-  # Single model
-  uv run python scripts/plot_throughput_comparison.py \\
-    -d "NEP-4.5.0 10000 250 100000 160 1000000 90 10000000 46" \\
-    -o nep_throughput.png
-  
-  # Three models with custom title and larger font
-  uv run python scripts/plot_throughput_comparison.py \\
-    -d "NEP-4.5.0 10000 245.3 100000 156.8 1000000 89.2 10000000 45.6" \\
-    -d "NEP-3.3.0 10000 230.1 100000 148.5 1000000 85.3 10000000 43.2" \\
-    -d "TabGAP 10000 128.5 100000 82.1 1000000 48.3 10000000 23.7" \\
-    --title "MD Performance Comparison on NVIDIA A100" \\
-    --font-scale 1.2 \\
-    -o throughput_3models.png
-        """
+        formatter_class=argparse.RawDescriptionHelpFormatter
     )
     
     parser.add_argument(
-        "-d", "--data",
+        "-i", "--input",
         type=str,
-        action='append',
-        required=True,
-        help='Model data: "ModelName n_atoms1 throughput1 n_atoms2 throughput2 ..." (can be specified multiple times)'
+        default="draw_pics/theoritical_raw_data.csv",
+        help="Input CSV file (default: draw_pics/theoritical_raw_data.csv)"
     )
     parser.add_argument(
         "-o", "--output",
@@ -286,81 +220,72 @@ Examples:
     parser.add_argument(
         "--title",
         type=str,
-        default=None,
-        help="Plot title (optional)"
-    )
-    parser.add_argument(
-        "--xlabel",
-        type=str,
-        default="Number of Atoms",
-        help="X-axis label (default: Number of Atoms)"
-    )
-    parser.add_argument(
-        "--ylabel",
-        type=str,
-        default="Throughput (million atom-steps/s)",
-        help="Y-axis label (default: Throughput (million atom-steps/s))"
-    )
-    parser.add_argument(
-        "--no-grid",
-        action='store_true',
-        help="Disable grid"
-    )
-    parser.add_argument(
-        "--font-scale",
-        type=float,
-        default=1.0,
-        help="Font size scaling factor (default: 1.0). Use 1.2 for larger fonts, 0.8 for smaller fonts."
+        default="Computational Throughput Comparison: NEP vs tabGAP",
+        help="Plot title"
     )
     
     args = parser.parse_args()
     
+    workspace_root = Path(__file__).parent.parent
+    input_path = workspace_root / args.input
+    
     print("=" * 80)
     print("Computational Throughput Comparison")
     print("=" * 80)
-    print(f"\nNumber of models: {len(args.data)}")
+    print(f"Input file: {input_path}")
     print(f"Output file: {args.output}")
-    print(f"Font scale: {args.font_scale}x")
-    if args.title:
-        print(f"Title: {args.title}")
     
-    # Parse input data
-    print("\n" + "=" * 80)
-    print("Parsing input data...")
-    print("=" * 80)
-    
+    # Read data from CSV
     try:
-        datasets = parse_data_input(args.data)
-    except ValueError as e:
-        print(f"Error: {e}")
+        df = pd.read_csv(input_path)
+        print("\nSuccessfully loaded data from CSV:")
+        print(df)
+        
+        n_atoms = df.iloc[:, 0].values
+        
+        # NEP data (columns 1, 2, 3)
+        nep_raw = df.iloc[:, 1:4].values
+        nep_mean = np.mean(nep_raw, axis=1)
+        nep_std = np.std(nep_raw, axis=1)
+        
+        # tabGAP data (columns 4, 5, 6)
+        gap_raw = df.iloc[:, 4:7].values
+        gap_mean = np.mean(gap_raw, axis=1)
+        gap_std = np.std(gap_raw, axis=1)
+        
+        datasets = [
+            {
+                'name': 'NEP',
+                'n_atoms': n_atoms,
+                'throughput_mean': nep_mean,
+                'throughput_std': nep_std
+            },
+            {
+                'name': 'tabGAP',
+                'n_atoms': n_atoms,
+                'throughput_mean': gap_mean,
+                'throughput_std': gap_std
+            }
+        ]
+        
+    except Exception as e:
+        print(f"Error reading CSV: {e}")
         return 1
-    
-    # Validate and print data
-    for i, data in enumerate(datasets):
-        print(f"\nModel {i+1}: {data['name']}")
-        print(f"  Data points: {len(data['n_atoms'])}")
-        print(f"  Atom range: {data['n_atoms'].min():.0f} to {data['n_atoms'].max():.0f}")
-        print(f"  Throughput range: {data['throughput'].min():.2f} to {data['throughput'].max():.2f} million atom-steps/s")
     
     # Plot results
     print("\n" + "=" * 80)
-    print("Generating plot...")
+    print("Generating plot with ultra-fine grid...")
     print("=" * 80)
     
     plot_throughput_comparison(
         datasets=datasets,
         output_file=args.output,
-        title=args.title,
-        xlabel=args.xlabel,
-        ylabel=args.ylabel,
-        show_grid=not args.no_grid,
-        font_scale=args.font_scale
+        title=args.title
     )
     
     print("\n" + "=" * 80)
     print("Analysis complete!")
     print("=" * 80)
-    print(f"Output plot: {args.output}")
     
     return 0
 
