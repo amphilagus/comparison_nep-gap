@@ -11,23 +11,42 @@ Energy bins:
 - (E_min + 0.5, E_min + 3.0 eV]
 - (E_min + 3.0, +∞)
 
-Usage:
-    uv run python scripts/plot_mae_by_energy_bins.py \
-        -c run/analysis/tabgap_npj2023/energy_errors_detailed.csv \
-        -c run/analysis/4.0.0_npj2023/energy_errors_detailed.csv \
-        -c run/analysis/3.3.0_npj2023/energy_errors_detailed.csv \
-        -n tabGAP -n "NEP (energy-dependent weighting)" -n "NEP (configuration-type weighting)" \
-        -t train_dataset/nep_baseline/npj2023.xyz
-        -o energy_mae_comparison.png
+All parameters are hard-coded at the beginning of the script.
 """
 
-import argparse
 import csv
 import re
 import numpy as np
 import matplotlib.pyplot as plt
 from pathlib import Path
 from typing import List, Tuple, Dict
+
+# ============================================================================
+# Configuration: Hard-coded parameters
+# ============================================================================
+csv_files = [
+    '/Users/amphilagusgu/workspace/comparison_nep-gap/run/analysis/tabgap_npj2023/energy_errors_detailed.csv',
+    '/Users/amphilagusgu/workspace/comparison_nep-gap/run/analysis/4.2.0_npj2023/energy_errors_detailed.csv',
+    '/Users/amphilagusgu/workspace/comparison_nep-gap/run/analysis/1.0.4_npj2023/energy_errors_detailed.csv',
+]
+
+model_names = [
+    'tabGAP',
+    'NEP (energy-dependent weighting)',
+    'NEP (configuration-type weighting)',
+]
+
+train_xyz = '/Users/amphilagusgu/workspace/comparison_nep-gap/train_dataset/nep_baseline/npj2023.xyz'
+
+output_file = '/Users/amphilagusgu/workspace/comparison_nep-gap/draw_pics/output/energy_mae_comparison.png'
+
+alpha = 1.0
+
+epsilon = 1.0  # Default value
+
+bins = [0.1, 0.5, 3.0]  # Default energy bin edges in eV
+
+# ============================================================================
 
 
 def parse_xyz_for_rescale(xyz_file: str) -> Dict[str, np.ndarray]:
@@ -354,100 +373,35 @@ def plot_combined_analysis(mae_data: List[np.ndarray],
 
 
 def main():
-    parser = argparse.ArgumentParser(
-        description="Plot MAE by Energy Bins for Multiple Forcefields",
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog="""
-Examples:
-  # Compare three forcefields with rescale plot
-  uv run python scripts/plot_mae_by_energy_bins.py \\
-    -c run/analysis/tabgap_npj2023/energy_errors_detailed.csv \\
-    -c run/analysis/4.0.0_npj2023/energy_errors_detailed.csv \\
-    -c run/analysis/3.3.0_npj2023/energy_errors_detailed.csv \\
-    -n tabGAP -n NEP-4.0.0 -n NEP-3.3.0 \\
-    -t train_dataset/nep_baseline/npj2023.xyz \\
-    --epsilon 1.0 --alpha 2.0 \\
-    -o energy_mae_comparison.png
-        """
-    )
-    
-    parser.add_argument(
-        "-c", "--csv",
-        type=str,
-        action='append',
-        required=True,
-        help="CSV file with energy errors (can be specified multiple times, first must be tabGAP)"
-    )
-    parser.add_argument(
-        "-n", "--name",
-        type=str,
-        action='append',
-        required=True,
-        help="Model name corresponding to each CSV file"
-    )
-    parser.add_argument(
-        "-o", "--output",
-        type=str,
-        default="energy_mae_comparison.png",
-        help="Output plot filename (default: energy_mae_comparison.png)"
-    )
-    parser.add_argument(
-        "--bins",
-        type=float,
-        nargs='+',
-        default=[0.1, 0.5, 3.0],
-        help="Energy bin edges in eV (default: 0.1 0.5 3.0)"
-    )
-    parser.add_argument(
-        "-t", "--train-xyz",
-        type=str,
-        required=True,
-        help="Training XYZ file for rescale plot"
-    )
-    parser.add_argument(
-        "--epsilon",
-        type=float,
-        default=1.0,
-        help="Epsilon parameter for rescale function (default: 1.0)"
-    )
-    parser.add_argument(
-        "--alpha",
-        type=float,
-        default=1.5,
-        help="Alpha parameter for rescale function (default: 1.5)"
-    )
-    
-    args = parser.parse_args()
-    
     # Validate inputs
-    if len(args.csv) != len(args.name):
+    if len(csv_files) != len(model_names):
         print("Error: Number of CSV files must match number of names")
         return 1
     
-    if len(args.csv) < 1:
+    if len(csv_files) < 1:
         print("Error: At least one CSV file is required")
         return 1
     
     print("=" * 80)
     print("MAE Analysis by Energy Bins")
     print("=" * 80)
-    print(f"\nNumber of forcefields: {len(args.csv)}")
-    print(f"Energy bin edges: {args.bins} eV")
-    print(f"Training XYZ file: {args.train_xyz}")
-    print(f"Rescale parameters: ε={args.epsilon}, α={args.alpha}")
-    print(f"Output file: {args.output}")
+    print(f"\nNumber of forcefields: {len(csv_files)}")
+    print(f"Energy bin edges: {bins} eV")
+    print(f"Training XYZ file: {train_xyz}")
+    print(f"Rescale parameters: ε={epsilon}, α={alpha}")
+    print(f"Output file: {output_file}")
     
     # Parse training XYZ file for rescale plot
     print("\n" + "=" * 80)
     print("Parsing training XYZ file...")
     print("=" * 80)
     
-    train_xyz_path = Path(args.train_xyz)
+    train_xyz_path = Path(train_xyz)
     if not train_xyz_path.exists():
-        print(f"Error: Training XYZ file not found: {args.train_xyz}")
+        print(f"Error: Training XYZ file not found: {train_xyz}")
         return 1
     
-    train_xyz_data = parse_xyz_for_rescale(args.train_xyz)
+    train_xyz_data = parse_xyz_for_rescale(train_xyz)
     print(f"  Parsed {len(train_xyz_data['energies'])} structures")
     print(f"  Energy range: {np.min(train_xyz_data['energies']):.6f} to {np.max(train_xyz_data['energies']):.6f} eV/atom")
     print(f"  Found {len(set(train_xyz_data['config_types']))} unique config types")
@@ -458,7 +412,7 @@ Examples:
     print("=" * 80)
     
     datasets = []
-    for csv_file, name in zip(args.csv, args.name):
+    for csv_file, name in zip(csv_files, model_names):
         csv_path = Path(csv_file)
         if not csv_path.exists():
             print(f"Error: CSV file not found: {csv_file}")
@@ -480,7 +434,7 @@ Examples:
     # Calculate bins (use first dataset as reference for bin definitions)
     bin_labels, _ = calculate_energy_bins(
         datasets[0]['DFT_Energy_eV_per_atom'],
-        args.bins
+        bins
     )
     n_bins = len(bin_labels)
     
@@ -494,9 +448,9 @@ Examples:
     print("=" * 80)
     
     mae_data = []
-    for data, name in zip(datasets, args.name):
+    for data, name in zip(datasets, model_names):
         dft_energies = data['DFT_Energy_eV_per_atom']
-        _, bin_assignments = calculate_energy_bins(dft_energies, args.bins)
+        _, bin_assignments = calculate_energy_bins(dft_energies, bins)
         
         mae_values = calculate_mae_by_bins(data, bin_assignments, n_bins)
         mae_data.append(mae_values)
@@ -512,9 +466,9 @@ Examples:
     print("Generating combined plot...")
     print("=" * 80)
     
-    plot_combined_analysis(mae_data, bin_labels, args.name, 
-                          train_xyz_data, args.epsilon, args.alpha, 
-                          args.output)
+    plot_combined_analysis(mae_data, bin_labels, model_names, 
+                          train_xyz_data, epsilon, alpha, 
+                          output_file)
     
     print("\n" + "=" * 80)
     print("Analysis complete!")
