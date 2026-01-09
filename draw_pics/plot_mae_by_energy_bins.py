@@ -16,7 +16,8 @@ Usage:
         -c run/analysis/tabgap_npj2023/energy_errors_detailed.csv \
         -c run/analysis/4.0.0_npj2023/energy_errors_detailed.csv \
         -c run/analysis/3.3.0_npj2023/energy_errors_detailed.csv \
-        -n tabGAP -n NEP-4.0.0 -n NEP-3.3.0 \
+        -n tabGAP -n "NEP (energy-dependent weighting)" -n "NEP (configuration-type weighting)" \
+        -t train_dataset/nep_baseline/npj2023.xyz
         -o energy_mae_comparison.png
 """
 
@@ -221,15 +222,15 @@ def plot_combined_analysis(mae_data: List[np.ndarray],
     color_map = {ct: colors_ct[i] for i, ct in enumerate(unique_config_types)}
     
     # Plot theoretical rescale curve
-    min_energy = np.min(energies)
+    e_min = np.min(energies)
     max_energy = np.max(energies)
-    energy_range = np.linspace(min_energy, max_energy, 500)
-    rescale_curve = 1.0 / (1.0 + (energy_range/epsilon - min_energy/epsilon) ** alpha)
-    ax1.plot(energy_range, rescale_curve, 'k-', linewidth=2, zorder=1, label='Rescale Function')
+    relative_energy_range = np.linspace(0, max_energy - e_min, 500)
+    rescale_curve = 1.0 / (1.0 + (relative_energy_range/epsilon) ** alpha)
+    ax1.plot(relative_energy_range, rescale_curve, 'k-', linewidth=2, zorder=1, label='Rescale Function')
     
     # Set log scale for y-axis
     ax1.set_yscale('log')
-    ax1.set_xlabel('Average Energy (eV/atom)', fontsize=fontsize, fontweight='bold')
+    ax1.set_xlabel('Relative Energy (eV/atom)', fontsize=fontsize, fontweight='bold')
     ax1.set_ylabel('Rescale Factor', fontsize=fontsize, fontweight='bold')
     ax1.grid(True, alpha=0.3)
     
@@ -238,12 +239,13 @@ def plot_combined_analysis(mae_data: List[np.ndarray],
     # ax1_twin.set_ylabel('Config Type', fontsize=fontsize, fontweight='bold', color='gray')
     
     # Plot config_type scatter points
+    config_types_arr = np.array(config_types)
     for ct in unique_config_types:
-        mask = [config_types[i] == ct for i in range(len(config_types))]
-        e_filtered = [energies[i] for i in range(len(energies)) if mask[i]]
+        mask = config_types_arr == ct
+        e_filtered_relative = energies[mask] - e_min
         ct_idx = config_type_to_idx[ct]
-        ct_indices = [ct_idx] * len(e_filtered)
-        ax1_twin.scatter(e_filtered, ct_indices, c=[color_map[ct]], 
+        ct_indices = [ct_idx] * len(e_filtered_relative)
+        ax1_twin.scatter(e_filtered_relative, ct_indices, c=[color_map[ct]], 
                         alpha=0.6, s=20, zorder=2, label=ct if len(unique_config_types) <= 10 else None)
     
     ax1_twin.set_yticks(range(len(unique_config_types)))
@@ -309,10 +311,10 @@ def plot_combined_analysis(mae_data: List[np.ndarray],
                 height = bar.get_height()
                 ax2.text(bar.get_x() + bar.get_width()/2., height,
                         f'{val:.1f}',
-                        ha='center', va='bottom', fontsize=fontsize, fontweight='bold')
+                        ha='center', va='bottom', fontsize=fontsize)
     
     # Customize plot
-    ax2.set_xlabel('Energy Range (relative to E_min)', fontsize=fontsize, fontweight='bold')
+    ax2.set_xlabel('Energy Range (Relative Energy)', fontsize=fontsize, fontweight='bold')
     ax2.set_ylabel('MAE (meV/atom)', fontsize=fontsize, fontweight='bold')
     # ax2.set_title('Energy MAE Comparison by Energy Bins', fontsize=fontsize+3, fontweight='bold')
     ax2.set_xticks(x)
@@ -411,8 +413,8 @@ Examples:
     parser.add_argument(
         "--alpha",
         type=float,
-        default=2.0,
-        help="Alpha parameter for rescale function (default: 2.0)"
+        default=1.5,
+        help="Alpha parameter for rescale function (default: 1.5)"
     )
     
     args = parser.parse_args()

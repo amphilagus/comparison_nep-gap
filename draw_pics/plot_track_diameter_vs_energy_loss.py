@@ -186,7 +186,7 @@ def plot_track_diameter_comparison(
     ax.set_ylim(bottom=0)
     
     # Save figure
-    plt.savefig(output_file, dpi=300, bbox_inches='tight')
+    plt.savefig(output_file, dpi=600, bbox_inches='tight')
     print(f"\nPlot saved to: {output_file}")
     
     # Print summary table
