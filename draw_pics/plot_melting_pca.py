@@ -11,28 +11,9 @@ Features:
 - Config_type coloring for easy comparison
 - PCA analysis with optional config type merging
 
-Usage:
-    # Basic usage with same test set for all models
-    uv run python draw_pics/plot_melting_pca.py \\
-        --test-xyz train_dataset/nep_baseline/test.xyz \\
-        --models forcefield/nep/5.1.0.txt forcefield/nep/4.3.1.txt forcefield/nep/1.0.4.txt \\
-        --names "NEP 5.1.0" "NEP 4.3.1" "NEP 1.0.4" \\
-        --descriptor "train_dataset/check for PCA/descriptor_1.out" \\
-        --descriptor-xyz "train_dataset/check for PCA/1.xyz" \\
-        --skip-run
-    
-    # With separate tabGAP test set
-    uv run python draw_pics/plot_melting_pca.py \\
-        --test-xyz train_dataset/nep_baseline/test.xyz \\
-        --tabgap-test-xyz train_dataset/gap_baseline/test.xyz \\
-        --models forcefield/nep/5.1.0.txt forcefield/nep/4.3.1.txt forcefield/tabgap \\
-        --names "NEP 5.1.0" "NEP 4.3.1" "tabGAP" \\
-        --descriptor descriptor.out \\
-        --descriptor-xyz descriptor.xyz \\
-        --skip-run
+All parameters are set via hard-coded variables near the top of the file.
 """
 
-import argparse
 import numpy as np
 import matplotlib.pyplot as plt
 from pathlib import Path
@@ -44,6 +25,39 @@ from sklearn.preprocessing import StandardScaler
 
 # Add scripts to path
 sys.path.insert(0, str(Path(__file__).parent.parent / "scripts"))
+
+test_xyz = "train_dataset/gap_baseline/active_training/train.xyz"
+tabgap_test_xyz = "train_dataset/gap_baseline/active_training/train.xyz"
+models = [
+    "forcefield/tabgap",
+    "forcefield/nep/4.2.0.txt",
+    "forcefield/nep/5.1.0.txt",
+]
+names = [
+    r"$\bf{tabGAP}$",
+    r"$\bf{NEP\,(GAP\ dataset)}$",
+    r"$\bf{NEP\,(augmented\ dataset)}$",
+]
+descriptor_file = "train_dataset/check for PCA/descriptor_1.out"
+descriptor_xyz = "train_dataset/check for PCA/1.xyz"
+output_file = "draw_pics/output/melting_pca.png"
+lammps_exe = "opt/lmp_nep_tabgap"
+skip_run = True
+merge_types = True
+nep_to_tabgap_baseline = True
+
+original_zpe = {
+    "Ga": -0.0244486,
+    "O": -0.0350174,
+}
+nep89_zpe = {
+    "Ga": -1.68768,
+    "O": -3.19589,
+}
+energy_diff = {
+    "Ga": nep89_zpe["Ga"] - original_zpe["Ga"],
+    "O": nep89_zpe["O"] - original_zpe["O"],
+}
 
 
 def parse_xyz_structure(lines, start_idx):
@@ -61,11 +75,24 @@ def parse_xyz_structure(lines, start_idx):
         energy_match = re.search(r'Energy=([+-]?\d*\.?\d+(?:[eE][+-]?\d+)?)', properties_line)
         dft_energy = float(energy_match.group(1)) if energy_match else 0.0
         
+        atom_counts = {"Ga": 0, "O": 0}
+        for j in range(num_atoms):
+            atom_line_idx = start_idx + 2 + j
+            if atom_line_idx >= len(lines):
+                break
+            parts = lines[atom_line_idx].split()
+            if not parts:
+                continue
+            element = parts[0]
+            if element in atom_counts:
+                atom_counts[element] += 1
+
         return {
             'num_atoms': num_atoms,
             'config_type': config_type,
             'dft_energy': dft_energy,
-            'dft_energy_per_atom': dft_energy / num_atoms
+            'dft_energy_per_atom': dft_energy / num_atoms,
+            'atom_counts': atom_counts,
         }, start_idx + 2 + num_atoms
         
     except Exception:
@@ -125,7 +152,7 @@ def extract_potential_energy_from_log(log_file):
         return None
 
 
-def collect_predictions(raw_data_dir, structures):
+def collect_predictions(raw_data_dir, structures, potential_type):
     """Collect DFT and LAMMPS predictions grouped by config_type"""
     raw_data_path = Path(raw_data_dir)
     subdirs = sorted([d for d in raw_data_path.iterdir() if d.is_dir()])
@@ -148,6 +175,14 @@ def collect_predictions(raw_data_dir, structures):
         
         structure = structures[i]
         dft_energy_per_atom = structure['dft_energy_per_atom']
+        if potential_type == "nep" and nep_to_tabgap_baseline:
+            atom_counts = structure.get("atom_counts") or {"Ga": 0, "O": 0}
+            energy_offset = (
+                atom_counts.get("Ga", 0) * energy_diff["Ga"]
+                + atom_counts.get("O", 0) * energy_diff["O"]
+            )
+            predicted_energy = predicted_energy - energy_offset
+
         lammps_energy_per_atom = predicted_energy / structure['num_atoms']
         config_type = structure['config_type']
         
@@ -183,7 +218,7 @@ def plot_energy_scatter(ax, dft_energies, lammps_energies, config_types, model_n
         color = default_colors[i % len(default_colors)]
         ax.scatter(dft_energies[mask], lammps_energies[mask], 
                   alpha=0.6, s=20, color=color, edgecolor='none',
-                  label=f'{config_type} ({np.sum(mask)})')
+                  label=fr'$\mathit{{{config_type}}}$')
     
     # Handle None values
     none_mask = config_types == None
@@ -201,7 +236,7 @@ def plot_energy_scatter(ax, dft_energies, lammps_energies, config_types, model_n
     ax.set_xlabel('DFT Energy (eV/atom)', fontsize=fontsize, fontweight='bold')
     ax.set_ylabel('LAMMPS Energy (eV/atom)', fontsize=fontsize, fontweight='bold')
     ax.grid(True, alpha=0.3)
-    if model_name == "tabGAP":
+    if model_name == r"$\bf{tabGAP}$":
         ax.legend(loc='lower right', fontsize=fontsize-1)
     
     # Add subplot label (a), (b), (c), (d)
@@ -215,7 +250,7 @@ def plot_energy_scatter(ax, dft_energies, lammps_energies, config_types, model_n
     #        bbox={'boxstyle': 'round', 'facecolor': 'white', 'alpha': 0.8})
     
     # Add statistics
-    stats_text = model_name+f'\nRMSE={rmse:.4f} eV/atom \nMAE={mae:.4f} eV/atom'
+    stats_text = model_name+f'\nRMSE={rmse*1000:.1f} meV/atom \nMAE={mae*1000:.1f} meV/atom'
     ax.text(0.05, 0.95, stats_text, transform=ax.transAxes,
            verticalalignment='top', fontsize=fontsize,
            bbox={'boxstyle': 'round', 'facecolor': 'white', 'alpha': 0.8})
@@ -278,7 +313,7 @@ def plot_pca_panel(ax, pca_data, config_types, pca_obj, subplot_label=None,fonts
     
     # Configuration type mapping for cleaner legends
     mapping_table = {
-        'bulk_beta_phase': r'$\beta$ phase',
+        'bulk_beta_phase': r'$\beta$-phase',
         'bulk_gamma_phase': r'$\gamma$ phase',
         'bulk_alpha_phase': r'$\alpha$ phase',
         'bulk_delta_phase': r'$\delta$ phase',
@@ -300,7 +335,7 @@ def plot_pca_panel(ax, pca_data, config_types, pca_obj, subplot_label=None,fonts
         'melted_phase': r'melted',
         'isolated_atom': r'isolated Ga/O atoms',
         'close_3b_phase': r'close-3b phase',
-        'amorphous_phase': r'amorphous'
+        'amorphous_phase': r'amorphous',
     }
 
     unique_types = sorted(set(config_types))
@@ -390,99 +425,91 @@ def run_lammps_for_model(test_xyz, forcefield, lammps_exe, workspace_root):
 
 
 def main():
-    parser = argparse.ArgumentParser(
-        description="Comprehensive Analysis: 3 Models + PCA",
-        formatter_class=argparse.RawDescriptionHelpFormatter
-    )
-    
-    parser.add_argument("--test-xyz", required=True, help="Test xyz file for NEP models")
-    parser.add_argument("--tabgap-test-xyz", default=None, help="Separate test xyz file for tabGAP (optional)")
-    parser.add_argument("--models", nargs=3, required=True, help="Three forcefields")
-    parser.add_argument("--names", nargs=3, required=True, help="Three model names")
-    parser.add_argument("--descriptor", required=True, help="Descriptor file for PCA")
-    parser.add_argument("--descriptor-xyz", required=True, help="XYZ for PCA config types")
-    parser.add_argument("-o", "--output", default="melting_pca.png", help="Output")
-    parser.add_argument("--lammps", default="opt/lmp_nep_tabgap", help="LAMMPS executable")
-    parser.add_argument("--skip-run", action="store_true", help="Skip LAMMPS run")
-    parser.add_argument("--no-merge", action="store_true", help="Don't merge config types")
-    
-    args = parser.parse_args()
-    
     workspace_root = Path(__file__).parent.parent
     
     print("=" * 80)
     print("Comprehensive Analysis: 3 Models + PCA")
     print("=" * 80)
-    print(f"NEP test xyz: {args.test_xyz}")
-    if args.tabgap_test_xyz:
-        print(f"tabGAP test xyz: {args.tabgap_test_xyz}")
+    print(f"NEP test xyz: {test_xyz}")
+    if tabgap_test_xyz:
+        print(f"tabGAP test xyz: {tabgap_test_xyz}")
     print("=" * 80)
+
+    if len(models) != 3 or len(names) != 3:
+        print("Error: This script expects exactly 3 models and 3 names.")
+        return 1
+
+    if len(models) != len(names):
+        print("Error: models and names must have the same length.")
+        return 1
     
     # Collect predictions
     print("\n[1/3] Collecting predictions...")
     model_predictions = []
     
-    if not args.skip_run:
-        for i, (model, name) in enumerate(zip(args.models, args.names)):
+    if not skip_run:
+        for i, (model, name) in enumerate(zip(models, names)):
             print(f"\n  Model {i+1}/3: {name}")
             
             # Detect potential type
             ff_path = Path(model)
             is_tabgap = not (ff_path.is_file() and ff_path.suffix == '.txt')
+            potential_type = "tabgap" if is_tabgap else "nep"
             
             # Choose appropriate test xyz
-            if is_tabgap and args.tabgap_test_xyz:
-                test_xyz = args.tabgap_test_xyz
-                print(f"    Using tabGAP test xyz: {test_xyz}")
+            if is_tabgap and tabgap_test_xyz:
+                model_test_xyz = tabgap_test_xyz
+                print(f"    Using tabGAP test xyz: {model_test_xyz}")
             else:
-                test_xyz = args.test_xyz
-                print(f"    Using NEP test xyz: {test_xyz}")
+                model_test_xyz = test_xyz
+                print(f"    Using NEP test xyz: {model_test_xyz}")
             
             # Read structures for this model
-            structures = read_test_xyz_structures(test_xyz)
+            structures = read_test_xyz_structures(model_test_xyz)
             print(f"    Loaded {len(structures)} structures")
             
             # Run LAMMPS and collect predictions
-            data_dir = run_lammps_for_model(test_xyz, model, args.lammps, workspace_root)
-            dft_e, lmp_e, configs = collect_predictions(data_dir, structures)
+            data_dir = run_lammps_for_model(model_test_xyz, model, lammps_exe, workspace_root)
+            dft_e, lmp_e, configs = collect_predictions(data_dir, structures, potential_type)
             model_predictions.append((dft_e, lmp_e, configs))
     else:
         from run_lammps_workflow import generate_test_name
-        for i, (model, name) in enumerate(zip(args.models, args.names)):
+        for i, (model, name) in enumerate(zip(models, names)):
             print(f"\n  Model {i+1}/3: {name}")
             
             # Detect potential type
             ff_path = Path(model)
             is_tabgap = not (ff_path.is_file() and ff_path.suffix == '.txt')
+            potential_type = "tabgap" if is_tabgap else "nep"
             
             # Choose appropriate test xyz
-            if is_tabgap and args.tabgap_test_xyz:
-                test_xyz = args.tabgap_test_xyz
-                print(f"    Using tabGAP test xyz: {test_xyz}")
+            if is_tabgap and tabgap_test_xyz:
+                model_test_xyz = tabgap_test_xyz
+                print(f"    Using tabGAP test xyz: {model_test_xyz}")
             else:
-                test_xyz = args.test_xyz
-                print(f"    Using NEP test xyz: {test_xyz}")
+                model_test_xyz = test_xyz
+                print(f"    Using NEP test xyz: {model_test_xyz}")
             
             # Read structures for this model
-            structures = read_test_xyz_structures(test_xyz)
+            structures = read_test_xyz_structures(model_test_xyz)
             print(f"    Loaded {len(structures)} structures")
             
             # Collect predictions from existing results
-            test_name = generate_test_name(test_xyz, model)
+            test_name = generate_test_name(model_test_xyz, model)
             data_dir = workspace_root / "run" / "raw_data" / test_name
             print(f"    Using existing data: {test_name}")
-            dft_e, lmp_e, configs = collect_predictions(data_dir, structures)
+            dft_e, lmp_e, configs = collect_predictions(data_dir, structures, potential_type)
             model_predictions.append((dft_e, lmp_e, configs))
     
     # PCA analysis
     print("\n[2/3] Performing PCA...")
-    descriptors = read_descriptor_file(args.descriptor)
+    descriptors = read_descriptor_file(descriptor_file)
     print(f"  Loaded {len(descriptors)} descriptor vectors")
     
-    config_types = read_xyz_config_types(args.descriptor_xyz)
+    config_types = read_xyz_config_types(descriptor_xyz)
     print(f"  Loaded {len(config_types)} config types")
     
-    if not args.no_merge:
+    if merge_types:
         config_types = merge_config_types(config_types)
         print(f"  Merged config types (*GPa, v* → augmented)")
     
@@ -538,16 +565,16 @@ def main():
     # Plot 3 models
     for i in range(3):
         dft_e, lmp_e, configs = model_predictions[i]
-        print(f"  Panel {i+1}: {args.names[i]} ({len(dft_e)} points)")
-        plot_energy_scatter(axes[i], dft_e, lmp_e, configs, args.names[i], subplot_labels[i],fontsize=fontsize)
+        print(f"  Panel {i+1}: {names[i]} ({len(dft_e)} points)")
+        plot_energy_scatter(axes[i], dft_e, lmp_e, configs, names[i], subplot_labels[i],fontsize=fontsize)
     
     # Plot PCA
     print(f"  Panel 4: PCA Analysis ({len(pca_data)} points)")
     plot_pca_panel(axes[3], pca_data, config_types, pca_obj, subplot_labels[3],fontsize=fontsize)
     
     # plt.tight_layout()
-    plt.savefig(args.output, dpi=600, bbox_inches='tight')
-    print(f"\n✓ Figure saved: {args.output}")
+    plt.savefig(output_file, dpi=600, bbox_inches='tight')
+    print(f"\n✓ Figure saved: {output_file}")
     
     print("\n" + "=" * 80)
     print("Analysis complete!")
@@ -558,4 +585,3 @@ def main():
 
 if __name__ == "__main__":
     sys.exit(main())
-
