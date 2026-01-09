@@ -10,37 +10,26 @@ Key Features:
 - Throughput comparison across different models
 - Professional visualization matching project style
 
-Usage:
-    uv run python scripts/plot_throughput_comparison.py [options]
-
-Examples:
-    # Compare NEP and tabGAP throughput
-    uv run python scripts/plot_throughput_comparison.py \\
-        -d NEP 10000 245.3 100000 156.8 1000000 89.2 10000000 45.6 \\
-        -d tabGAP 10000 128.5 100000 82.1 1000000 48.3 10000000 23.7 \\
-        -o throughput_comparison.png
-    
-    # Single model throughput
-    uv run python scripts/plot_throughput_comparison.py \\
-        -d NEP-4.5.0 10000 250 100000 160 1000000 90 10000000 46 \\
-        -o nep_throughput.png
-    
-    # Three models comparison with custom title
-    uv run python scripts/plot_throughput_comparison.py \\
-        -d NEP-4.5.0 10000 245.3 100000 156.8 1000000 89.2 10000000 45.6 \\
-        -d NEP-3.3.0 10000 230.1 100000 148.5 1000000 85.3 10000000 43.2 \\
-        -d tabGAP 10000 128.5 100000 82.1 1000000 48.3 10000000 23.7 \\
-        --title "MD Performance Comparison on NVIDIA A100" \\
-        -o throughput_3models.png
+All parameters are hard-coded at the beginning of the script.
 """
 
-import argparse
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.gridspec import GridSpec
 from pathlib import Path
 from typing import List, Tuple, Dict
 import pandas as pd
+
+# ============================================================================
+# Configuration: Hard-coded parameters
+# ============================================================================
+input_file = 'draw_pics/theoritical_raw_data.csv'  # Input CSV file path (relative to workspace root)
+
+output_file = 'draw_pics/output/throughput_comparison.png'  # Output plot filename
+
+title = "Computational Throughput Comparison: NEP vs tabGAP"  # Plot title (not displayed, kept for reference)
+
+# ============================================================================
 
 
 def plot_throughput_comparison(datasets: List[Dict],
@@ -74,7 +63,7 @@ def plot_throughput_comparison(datasets: List[Dict],
     ax = fig.add_subplot(gs[0:y0, 0:x0])
     
     # Colors and markers
-    colors = {'NEP': '#e74c3c', 'tabGAP': '#3498db'}
+    colors = {'NEP': '#3498db', 'tabGAP': '#e74c3c'}
     markers = {'NEP': 'o', 'tabGAP': 's'}
     linestyles = {'NEP': '-', 'tabGAP': '--'}
     
@@ -97,7 +86,7 @@ def plot_throughput_comparison(datasets: List[Dict],
         
         # Add value labels
         for x, y in zip(n_atoms, throughput_mean):
-            ax.text(x, y * 1.05, f'{y:.1f}', 
+            ax.text(x, y + 0.5, f'{y:.1f}', 
                    ha='center', va='bottom', 
                    fontsize=fontsize, fontweight='bold',
                    color=color)
@@ -200,40 +189,18 @@ def plot_throughput_comparison(datasets: List[Dict],
 
 
 def main():
-    parser = argparse.ArgumentParser(
-        description="Plot Computational Throughput Comparison",
-        formatter_class=argparse.RawDescriptionHelpFormatter
-    )
+    workspace_root = Path.cwd()
+    input_path = workspace_root / input_file
     
-    parser.add_argument(
-        "-i", "--input",
-        type=str,
-        default="draw_pics/theoritical_raw_data.csv",
-        help="Input CSV file (default: draw_pics/theoritical_raw_data.csv)"
-    )
-    parser.add_argument(
-        "-o", "--output",
-        type=str,
-        default="throughput_comparison.png",
-        help="Output plot filename (default: throughput_comparison.png)"
-    )
-    parser.add_argument(
-        "--title",
-        type=str,
-        default="Computational Throughput Comparison: NEP vs tabGAP",
-        help="Plot title"
-    )
-    
-    args = parser.parse_args()
-    
-    workspace_root = Path(__file__).parent.parent
-    input_path = workspace_root / args.input
+    # Ensure output directory exists
+    output_path = workspace_root / output_file
+    output_path.parent.mkdir(parents=True, exist_ok=True)
     
     print("=" * 80)
     print("Computational Throughput Comparison")
     print("=" * 80)
     print(f"Input file: {input_path}")
-    print(f"Output file: {args.output}")
+    print(f"Output file: {output_path}")
     
     # Read data from CSV
     try:
@@ -279,8 +246,8 @@ def main():
     
     plot_throughput_comparison(
         datasets=datasets,
-        output_file=args.output,
-        title=args.title
+        output_file=str(output_path),
+        title=title
     )
     
     print("\n" + "=" * 80)
