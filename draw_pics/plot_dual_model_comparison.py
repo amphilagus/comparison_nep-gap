@@ -2,16 +2,32 @@
 """
 集成的双模型对比分析脚本
 自动校准NEP能量基线到tabGAP，并绘制2列3行的对比图
-只需指定NEP版本号和数据集名称，自动推断所有文件路径
+所有参数都硬编码在脚本开头的配置区域
 """
 
-import argparse
 import numpy as np
 import matplotlib.pyplot as plt
 import csv
 from pathlib import Path
 import re
 from typing import Dict, List, Tuple
+
+# ============================================================================
+# Configuration: Hard-coded parameters
+# ============================================================================
+nep_version = '4.2.0'  # NEP模型版本号
+
+dataset = 'npj2023'  # 数据集名称
+
+t5 = 5.0  # 第一列的能量阈值（eV）
+
+t05 = 0.5  # 第二列的能量阈值（eV）
+
+sparse_ratio = 1  # Force和Virial数据的稀疏化比例（0-1之间）
+
+skip_alignment = False  # 是否跳过能量校准步骤
+
+# ============================================================================
 
 
 class EnergyAligner:
@@ -490,8 +506,8 @@ def plot_dual_comparison_2x3(dft_data1_t5: Dict, lammps_data1_t5: Dict,
     data_labels = ['Energy (eV/atom)', 'Force (eV/Å)', 'Virial (eV/atom)']
     
     # 模型1和模型2的颜色和标记
-    color1 = 'blue'
-    color2 = 'red'
+    color1 = '#0d47a1'
+    color2 = '#d84315'
     marker1 = 'o'
     marker2 = 'x'
     
@@ -532,7 +548,7 @@ def plot_dual_comparison_2x3(dft_data1_t5: Dict, lammps_data1_t5: Dict,
             all_dft_vals = []
             all_lammps_vals = []
 
-            alpha = 0.5 if data_type == 'energy' else 0.5
+            alpha = 0.8 if data_type == 'energy' else 0.5
             s = 6 if data_type == 'energy' else 0.3 if data_type == 'forces' else 4          
 
             # 绘制模型1
@@ -600,20 +616,20 @@ def plot_dual_comparison_2x3(dft_data1_t5: Dict, lammps_data1_t5: Dict,
             
             # 添加统计信息
             stats_lines = []
-            unit = 'eV/atom' if data_type == 'energy' else 'eV/Å' if data_type == 'forces' else 'eV/atom'
+            unit = 'meV/atom' if data_type == 'energy' else 'meV/Å' if data_type == 'forces' else 'meV/atom'
             if len(dft_data1[data_type]) > 0:
-                stats_lines.append(f'NEP:')
-                stats_lines.append(f'RMSE = {rmse1:.4f} {unit}')
-                stats_lines.append(f'MAE = {mae1:.4f} {unit}')
+                stats_lines.append(r'$\bf{NEP}$')
+                stats_lines.append(f'RMSE = {rmse1*1000:.1f} {unit}')
+                stats_lines.append(f'MAE = {mae1*1000:.1f} {unit}')
                 # stats_lines.append(f'R² = {r2_1:.4f}')
                 # stats_lines.append(f'n = {len(dft_vals1)}')
             
             if len(dft_data2[data_type]) > 0:
                 if stats_lines:
                     stats_lines.append('')
-                stats_lines.append(f'tabGAP:')
-                stats_lines.append(f'RMSE = {rmse2:.4f} {unit}')
-                stats_lines.append(f'MAE = {mae2:.4f} {unit}')
+                stats_lines.append(r'$\bf{tabGAP}$')
+                stats_lines.append(f'RMSE = {rmse2*1000:.1f} {unit}')
+                stats_lines.append(f'MAE = {mae2*1000:.1f} {unit}')
                 # stats_lines.append(f'R² = {r2_2:.4f}')
                 # stats_lines.append(f'n = {len(dft_vals2)}')
             
@@ -644,7 +660,7 @@ def plot_dual_comparison_2x3(dft_data1_t5: Dict, lammps_data1_t5: Dict,
             
             # 添加图例（只在第一行显示）
             if row == 0:
-                ax.legend(loc='lower right', fontsize=fontsize, framealpha=0.9)
+                ax.legend(loc='lower right', fontsize=fontsize, framealpha=0.9, markerscale=2)
             
             plot_index += 1
     
@@ -654,65 +670,11 @@ def plot_dual_comparison_2x3(dft_data1_t5: Dict, lammps_data1_t5: Dict,
 
 
 def main():
-    parser = argparse.ArgumentParser(
-        description="集成的双模型对比分析：自动校准并绘图",
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog="""
-示例用法:
-  # 基本用法
-  python scripts/plot_dual_model_comparison.py --nep-version 4.0.0 --dataset 2026
-  
-  # 指定其他数据集
-  python scripts/plot_dual_model_comparison.py --nep-version 3.3.1 --dataset npj2023
-  
-  # 自定义稀疏化比例
-  python scripts/plot_dual_model_comparison.py --nep-version 4.0.0 --dataset 2026 --sparse-ratio 0.2
-        """
-    )
-    
-    parser.add_argument(
-        "--nep-version",
-        type=str,
-        required=True,
-        help="NEP模型版本号（例如：4.0.0, 3.3.1）"
-    )
-    parser.add_argument(
-        "--dataset",
-        type=str,
-        required=True,
-        help="数据集名称（例如：2026, npj2023, train）"
-    )
-    parser.add_argument(
-        "--t5",
-        type=float,
-        default=5.0,
-        help="第一列的能量阈值（默认：5.0 eV）"
-    )
-    parser.add_argument(
-        "--t05",
-        type=float,
-        default=0.5,
-        help="第二列的能量阈值（默认：0.5 eV）"
-    )
-    parser.add_argument(
-        "--sparse-ratio",
-        type=float,
-        default=0.1,
-        help="Force和Virial数据的稀疏化比例（0-1之间，默认0.1表示显示10%%的点）"
-    )
-    parser.add_argument(
-        "--skip-alignment",
-        action='store_true',
-        help="跳过能量校准步骤（如果已经有校准后的文件）"
-    )
-    
-    args = parser.parse_args()
-    
     # 构建标准化的文件路径
     workspace_root = Path.cwd()
     
-    nep_name = f"{args.nep_version}_{args.dataset}"
-    tabgap_name = f"tabgap_{args.dataset}"
+    nep_name = f"{nep_version}_{dataset}"
+    tabgap_name = f"tabgap_{dataset}"
     
     nep_csv = workspace_root / "run" / "analysis" / nep_name / "energy_errors_detailed.csv"
     nep_csv_aligned = workspace_root / "run" / "analysis" / nep_name / "energy_errors_detailed_aligned.csv"
@@ -721,7 +683,10 @@ def main():
     tabgap_csv = workspace_root / "run" / "analysis" / tabgap_name / "energy_errors_detailed.csv"
     tabgap_raw = workspace_root / "run" / "raw_data" / tabgap_name
     
-    output_png = workspace_root / "run" / "analysis" / nep_name / "comparison_dual_2x3.png"
+    # 确保输出目录存在
+    output_dir = workspace_root / "draw_pics" / "output"
+    output_dir.mkdir(parents=True, exist_ok=True)
+    output_png = output_dir / f"comparison_dual_2x3.png"
     
     # 检查文件是否存在
     if not nep_csv.exists():
@@ -743,18 +708,18 @@ def main():
     print("=" * 60)
     print("双模型对比分析")
     print("=" * 60)
-    print(f"NEP版本: {args.nep_version}")
-    print(f"数据集: {args.dataset}")
+    print(f"NEP版本: {nep_version}")
+    print(f"数据集: {dataset}")
     print(f"NEP CSV: {nep_csv}")
     print(f"NEP原始数据: {nep_raw}")
     print(f"tabGAP CSV: {tabgap_csv}")
     print(f"tabGAP原始数据: {tabgap_raw}")
-    print(f"能量阈值: t5={args.t5} eV, t05={args.t05} eV")
-    print(f"稀疏化比例: {args.sparse_ratio}")
+    print(f"能量阈值: t5={t5} eV, t05={t05} eV")
+    print(f"稀疏化比例: {sparse_ratio}")
     print("=" * 60)
     
     # 步骤1：能量基线校准
-    if not args.skip_alignment or not nep_csv_aligned.exists():
+    if not skip_alignment or not nep_csv_aligned.exists():
         print("\n[步骤 1/3] 能量基线校准")
         aligned_data, success = align_nep_energies(
             str(nep_csv),
@@ -779,7 +744,7 @@ def main():
     
     # 步骤2：收集数据
     print(f"\n[步骤 2/3] 收集数据")
-    print(f"\n收集NEP ({args.nep_version}) 数据...")
+    print(f"\n收集NEP ({nep_version}) 数据...")
     dft_data1, lammps_data1 = collect_data_from_csv_and_raw(str(nep_csv_aligned), str(nep_raw))
     print(f"  成功收集: 能量 {len(dft_data1['energy'])} 个, 力 {len(dft_data1['forces'])} 个, Virial {len(dft_data1['virial'])} 个")
     
@@ -797,20 +762,20 @@ def main():
             print("  ⚠ 警告：DFT能量基线不一致")
     
     # 筛选数据
-    print(f"\n筛选NEP t={args.t5} 的数据...")
-    dft_data1_t5, lammps_data1_t5 = filter_data_by_threshold(dft_data1, lammps_data1, args.t5)
+    print(f"\n筛选NEP t={t5} 的数据...")
+    dft_data1_t5, lammps_data1_t5 = filter_data_by_threshold(dft_data1, lammps_data1, t5)
     print(f"  筛选后样本数: {len(dft_data1_t5['energy'])}")
     
-    print(f"筛选NEP t={args.t05} 的数据...")
-    dft_data1_t05, lammps_data1_t05 = filter_data_by_threshold(dft_data1, lammps_data1, args.t05)
+    print(f"筛选NEP t={t05} 的数据...")
+    dft_data1_t05, lammps_data1_t05 = filter_data_by_threshold(dft_data1, lammps_data1, t05)
     print(f"  筛选后样本数: {len(dft_data1_t05['energy'])}")
     
-    print(f"\n筛选tabGAP t={args.t5} 的数据...")
-    dft_data2_t5, lammps_data2_t5 = filter_data_by_threshold(dft_data2, lammps_data2, args.t5)
+    print(f"\n筛选tabGAP t={t5} 的数据...")
+    dft_data2_t5, lammps_data2_t5 = filter_data_by_threshold(dft_data2, lammps_data2, t5)
     print(f"  筛选后样本数: {len(dft_data2_t5['energy'])}")
     
-    print(f"筛选tabGAP t={args.t05} 的数据...")
-    dft_data2_t05, lammps_data2_t05 = filter_data_by_threshold(dft_data2, lammps_data2, args.t05)
+    print(f"筛选tabGAP t={t05} 的数据...")
+    dft_data2_t05, lammps_data2_t05 = filter_data_by_threshold(dft_data2, lammps_data2, t05)
     print(f"  筛选后样本数: {len(dft_data2_t05['energy'])}")
     
     # 步骤3：绘图
@@ -819,9 +784,9 @@ def main():
         dft_data1_t5, lammps_data1_t5, dft_data1_t05, lammps_data1_t05,
         dft_data2_t5, lammps_data2_t5, dft_data2_t05, lammps_data2_t05,
         str(output_png),
-        model1_name=f"NEP {args.nep_version}",
+        model1_name=f"NEP {nep_version}",
         model2_name="tabGAP",
-        sparse_ratio=args.sparse_ratio
+        sparse_ratio=sparse_ratio
     )
     
     print("\n" + "=" * 60)
