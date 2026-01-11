@@ -167,10 +167,10 @@ datasets = [
 for data, title, ax, label in datasets:
     r = data['r_angstrom']
     ax.plot(r, data['pristine_rdf'], color=colors['pristine'], linestyle=linestyles['pristine'], linewidth=linewidths['pristine'], label='Pristine')
-    ax.plot(r, data['Irr._Core_0-15A_rdf'], color=colors['core'], linestyle=linestyles['core'], linewidth=linewidths['core'], label=r'Region \mathrm{I}')
-    ax.plot(r, data['Irr._Shell_15-30A_rdf'], color=colors['shell'], linestyle=linestyles['shell'], linewidth=linewidths['shell'], label=r'Region \mathrm{II}')
-    ax.plot(r, data['Irr._Outer_30-45A_rdf'], color=colors['outer'], linestyle=linestyles['outer'], linewidth=linewidths['outer'], label=r'Region \mathrm{III}')
-    ax.plot(r, data['Irr._Far_45-60A_rdf'], color=colors['far'], linestyle=linestyles['far'], linewidth=linewidths['far'], label=r'Region \mathrm{IV}')
+    ax.plot(r, data['Irr._Core_0-15A_rdf'], color=colors['core'], linestyle=linestyles['core'], linewidth=linewidths['core'], label=r'Region $\mathrm{I}$')
+    ax.plot(r, data['Irr._Shell_15-30A_rdf'], color=colors['shell'], linestyle=linestyles['shell'], linewidth=linewidths['shell'], label=r'Region $\mathrm{II}$')
+    ax.plot(r, data['Irr._Outer_30-45A_rdf'], color=colors['outer'], linestyle=linestyles['outer'], linewidth=linewidths['outer'], label=r'Region $\mathrm{III}$')
+    ax.plot(r, data['Irr._Far_45-60A_rdf'], color=colors['far'], linestyle=linestyles['far'], linewidth=linewidths['far'], label=r'Region $\mathrm{IV}$')
     ax.set_xlabel(r'$\boldsymbol{r}$ (Å)', fontsize=fontsize, fontweight='bold')
     ax.set_ylabel(r'$\boldsymbol{g(r)}$', fontsize=fontsize, fontweight='bold')
     ax.tick_params(labelsize=fontsize - 1)
