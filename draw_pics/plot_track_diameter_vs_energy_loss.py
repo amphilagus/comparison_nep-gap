@@ -94,7 +94,7 @@ def plot_track_diameter_comparison(
         experimental_data2: Tuple[np.ndarray, np.ndarray, np.ndarray] = None,
         output_file: str = "track_diameter_comparison.png",
         title: str = None,
-        xlabel: str = "Electronic Energy Loss (keV/nm)",
+        xlabel: str = "$S_e$ (keV/nm)",
         ylabel: str = "Track Diameter (nm)",
         theoretical_label: str = "MD Simulation (This Work)",
         experimental1_label: str = "Experimental Data 1",
@@ -288,7 +288,7 @@ Examples:
     parser.add_argument(
         "-o", "--output",
         type=str,
-        default="track_diameter_comparison.png",
+        default="draw_pics/output/track_diameter_comparison.png",
         help="Output plot filename (default: track_diameter_comparison.png)"
     )
     parser.add_argument(
