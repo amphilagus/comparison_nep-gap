@@ -83,7 +83,7 @@ z_lim *= pad
 figsize = 22
 fontsize = 10
 
-zorder_ga = 1
+zorder_ga = 3
 zorder_o = 2
 
 titlelist = [r"$\boldsymbol{S_e} = 15.68$ keV/nm",
@@ -105,7 +105,7 @@ gs = GridSpec(N, M, figure=fig, width_ratios=np.ones(M), height_ratios=np.ones(N
 
 color_ga = '#0d47a1'
 color_o = '#d84315'
-marker_size = 1.2
+marker_size = 1.4
 alpha = 0.8
 
 for col_idx in range(n_cols):
