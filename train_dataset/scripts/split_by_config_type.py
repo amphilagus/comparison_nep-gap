@@ -71,8 +71,8 @@ def write_split_files(config_groups, output_dir):
 def main():
     # 设置路径
     script_dir = Path(__file__).parent
-    input_file = script_dir / "train.xyz"
-    output_dir = script_dir / "split_by_config_type"
+    input_file = script_dir /  "../gap_baseline/test.xyz"
+    output_dir = script_dir / "../../function_of_states/original_data/"
     
     print(f"读取文件: {input_file}")
     

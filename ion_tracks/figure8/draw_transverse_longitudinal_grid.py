@@ -88,7 +88,7 @@ zorder_o = 2
 
 titlelist = [r"$\boldsymbol{S_e} = 15.68$ keV/nm",
             r"$S_e = 19.18$ keV/nm",
-            r"$S_e = 21.15$ keV/nm",
+            r"$S_e = 22.16$ keV/nm",
             r"$S_e = 26.05$ keV/nm",
             r"$S_e = 36.24$ keV/nm"]
 

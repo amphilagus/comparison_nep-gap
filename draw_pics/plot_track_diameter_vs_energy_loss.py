@@ -11,9 +11,9 @@ Key Features:
 - Professional visualization matching project style
 
 Data Format:
-- Column 1: Electronic energy loss (keV/nm)
-- Column 2: Track diameter (nm)
-- Column 3: Standard error of diameter (nm)
+- Column 0: Electronic energy loss (keV/nm)
+- Columns 1-3: Three diameter measurements (nm)
+- The script calculates mean diameter and standard error from the three measurements
 
 Usage:
     uv run python draw_pics/plot_track_diameter_vs_energy_loss.py [options]
@@ -58,28 +58,48 @@ def load_data(filepath: str) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
     Returns:
         Tuple of (energy_loss, diameter, diameter_error) arrays
     
-    Expected columns:
-        - Column 1: Electronic energy loss (keV/nm)
-        - Column 2: Track diameter (nm)
-        - Column 3: Standard error of diameter (nm)
+    Data format detection:
+        - If file has 4 columns: Theoretical data format
+          - Column 0: Electronic energy loss (keV/nm)
+          - Columns 1-3: Three diameter measurements (nm)
+          - Calculates mean diameter and standard deviation from the three measurements
+        - If file has 2-3 columns: Experimental data format
+          - Column 0: Electronic energy loss (keV/nm)
+          - Column 1: Track diameter (nm)
+          - Column 2 (optional): Standard deviation of diameter (nm)
     """
     # Read Excel file without treating first row as header
     df = pd.read_excel(filepath, header=None)
     
-    # Get the first three columns
     if df.shape[1] < 2:
         raise ValueError(f"File {filepath} must have at least 2 columns")
     
     energy_loss = df.iloc[:, 0].values
-    diameter = df.iloc[:, 1].values
     
-    # Check if error column exists
-    if df.shape[1] >= 3:
-        diameter_error = df.iloc[:, 2].values
+    # Check data format based on number of columns
+    if df.shape[1] >= 4:
+        # Theoretical data format: 4 columns (energy + 3 diameter measurements)
+        # Get the three diameter measurement columns
+        diameter_cols = df.iloc[:, 1:4].values  # Shape: (n_rows, 3)
+        
+        # Calculate mean diameter for each row
+        diameter = np.mean(diameter_cols, axis=1)
+        
+        # Calculate standard deviation: std
+        # For each row, calculate std of the three measurements
+        diameter_std = np.std(diameter_cols, axis=1, ddof=1)  # Sample standard deviation
+        diameter_error = diameter_std  # Standard deviation of the mean
     else:
-        diameter_error = np.zeros_like(diameter)
+        # Experimental data format: 2-3 columns (energy + diameter + optional error)
+        diameter = df.iloc[:, 1].values
+        
+        # Check if error column exists
+        if df.shape[1] >= 3:
+            diameter_error = df.iloc[:, 2].values
+        else:
+            diameter_error = np.zeros_like(diameter)
     
-    # Remove rows with NaN values
+    # Remove rows with NaN values in energy or diameter
     valid_mask = ~(np.isnan(energy_loss) | np.isnan(diameter))
     energy_loss = energy_loss[valid_mask]
     diameter = diameter[valid_mask]
@@ -127,8 +147,8 @@ def plot_track_diameter_comparison(
     ax = fig.add_subplot(gs[0:y0, 0:x0])
     
     # Colors and markers matching project style
-    color_theory = '#3498db'      # Blue for theoretical
-    color_exp1 = '#e74c3c'        # Red for experimental 1
+    color_theory = '#e74c3c'      # Red for theoretical
+    color_exp1 = '#3498db'        # Blue for experimental 1
     color_exp2 = '#2ecc71'        # Green for experimental 2
     
     marker_theory = 'o'
@@ -274,13 +294,13 @@ Examples:
     parser.add_argument(
         "--experimental1-label",
         type=str,
-        default="TEM (Ai $\mathit{et\ al.}$) ",
+        default=r"TEM (Ai $\mathit{et\ al.}$) ",
         help="Label for experimental data 1 (default: Ai et al. TEM)"
     )
     parser.add_argument(
         "--experimental2-label",
         type=str,
-        default="TEM (Xu $\mathit{et\ al.}$ )",
+        default=r"TEM (Xu $\mathit{et\ al.}$ )",
         help="Label for experimental data 2 (default: Xu et al. TEM)"
     )
     

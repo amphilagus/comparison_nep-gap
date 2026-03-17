@@ -74,11 +74,13 @@ ax2 = fig.add_subplot(gs[top_pad_y:top_h + top_pad_y, left_x0 + x_left_start + l
 
 color_ga = '#0d47a1'
 color_o = '#d84315'
-marker_size = 1.0
+marker_size = 1.2
 alpha = 0.8
+zorder_ga = 3
+zorder_o = 2
 
-ax1.scatter(ga_coords[:, 0], ga_coords[:, 2], s=marker_size, alpha=alpha, color=color_ga, label='Ga', edgecolor='none')
-ax1.scatter(o_coords[:, 0], o_coords[:, 2], s=marker_size * 0.6, alpha=alpha, color=color_o, label='O', edgecolor='none')
+ax1.scatter(ga_coords[:, 0], ga_coords[:, 2], s=marker_size, alpha=alpha, color=color_ga, label='Ga', edgecolor='none',zorder=zorder_ga)
+ax1.scatter(o_coords[:, 0], o_coords[:, 2], s=marker_size * 0.6, alpha=alpha, color=color_o, label='O', edgecolor='none',zorder=zorder_o)
 ax1.set_xlabel('X (Å)', fontsize=fontsize, fontweight='bold')
 ax1.set_ylabel('Z (Å)', fontsize=fontsize, fontweight='bold')
 ax1.legend(loc='upper right', fontsize=fontsize + 1, markerscale=5)
@@ -110,8 +112,8 @@ ax1.text(r_iv * np.cos(angle_iv), r_iv * np.sin(angle_iv), 'IV', fontsize=fontsi
 ax1.set_xlim(-60, 60)
 ax1.set_ylim(-60, 60)
 
-ax2.scatter(ga_coords[:, 0], ga_coords[:, 1], s=marker_size, alpha=alpha, color=color_ga, label='Ga', edgecolor='none')
-ax2.scatter(o_coords[:, 0], o_coords[:, 1], s=marker_size * 0.6, alpha=alpha, color=color_o, label='O', edgecolor='none')
+ax2.scatter(ga_coords[:, 0], ga_coords[:, 1], s=marker_size, alpha=alpha, color=color_ga, label='Ga', edgecolor='none',zorder=zorder_ga)
+ax2.scatter(o_coords[:, 0], o_coords[:, 1], s=marker_size * 0.6, alpha=alpha, color=color_o, label='O', edgecolor='none',zorder=zorder_o)
 ax2.set_xlabel('X (Å)', fontsize=fontsize, fontweight='bold')
 ax2.set_ylabel('Y (Å)', fontsize=fontsize, fontweight='bold')
 ax2.tick_params(labelsize=fontsize - 1)

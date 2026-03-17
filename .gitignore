@@ -70,3 +70,17 @@ lmp_*
 
 # vasp
 *.POSCAR
+
+# 图片
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.pdf
+
+*.ipynb
+
+*.pkl
+
+# 状态方程文件夹
+function_of_states/

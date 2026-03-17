@@ -250,7 +250,7 @@ def plot_energy_scatter(ax, dft_energies, lammps_energies, config_types, model_n
     #        bbox={'boxstyle': 'round', 'facecolor': 'white', 'alpha': 0.8})
     
     # Add statistics
-    stats_text = model_name+f'\nRMSE={rmse*1000:.1f} meV/atom \nMAE={mae*1000:.1f} meV/atom'
+    stats_text = model_name+f'\nRMSE = {rmse*1000:.1f} meV/atom \nMAE = {mae*1000:.1f} meV/atom'
     ax.text(0.05, 0.95, stats_text, transform=ax.transAxes,
            verticalalignment='top', fontsize=fontsize,
            bbox={'boxstyle': 'round', 'facecolor': 'white', 'alpha': 0.8})
@@ -332,7 +332,7 @@ def plot_pca_panel(ax, pca_data, config_types, pca_obj, subplot_label=None,fonts
         'Otrimer': r'trimer O$_3$',
         'RSS': r'random structure search',
         'active_training': r'O clusters',
-        'melted_phase': r'melted',
+        'melted_phase': r'molten',
         'isolated_atom': r'isolated Ga/O atoms',
         'close_3b_phase': r'close-3b phase',
         'amorphous_phase': r'amorphous',
