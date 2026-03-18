@@ -1,0 +1,9 @@
+kappa_xx_mean: 6.471672
+kappa_xx_std: 2.352427
+kappa_xx_sem: 0.743903
+kappa_yy_mean: 9.165640
+kappa_yy_std: 5.014865
+kappa_yy_sem: 1.585840
+kappa_zz_mean: 7.586763
+kappa_zz_std: 2.328516
+kappa_zz_sem: 0.736342
