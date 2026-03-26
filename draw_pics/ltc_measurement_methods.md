@@ -1,0 +1,35 @@
+# Lattice Thermal Conductivity Measurement Methods
+
+## S1. General methodology
+
+The lattice thermal conductivity reported in this work was evaluated using two different atomistic transport formalisms, depending on the interatomic potential employed. For the NEP potential, the thermal conductivity was calculated using homogeneous non-equilibrium molecular dynamics (HNEMD) as implemented in GPUMD. For the tabGAP potential, the thermal conductivity was obtained from equilibrium molecular dynamics (EMD) using the Green–Kubo formalism as implemented in LAMMPS. Both approaches yield the thermal conductivity tensor, but they differ in how the transport coefficient is extracted and in the statistical interpretation of the resulting uncertainty.
+
+In the HNEMD framework, an external driving field is applied to the system while maintaining the system close to the linear response regime. The field induces a steady-state heat current, and the thermal conductivity tensor is determined from the proportionality between the induced current and the driving field. For many-body potentials, HNEMD is formally equivalent to the Green–Kubo approach but is often computationally more efficient because the signal is obtained from a driven steady state rather than from the time integration of spontaneous equilibrium fluctuations.
+
+In contrast, the EMD/Green–Kubo method relies entirely on equilibrium fluctuations. The thermal conductivity is obtained by integrating the heat current autocorrelation function over correlation time. Within this framework, the spontaneous heat-current fluctuations in a fully equilibrated trajectory encode the transport response of the system through the fluctuation–dissipation theorem. Because the two approaches probe thermal transport from different statistical routes, the corresponding simulation workflow and uncertainty analysis were treated separately for NEP and tabGAP.
+
+## S2. HNEMD calculations with the NEP potential
+
+For the NEP potential, all thermal conductivity calculations were performed in GPUMD at 300 K. The system was first equilibrated in the NPT ensemble for 100 ps to relax residual stress and allow the simulation cell to reach its equilibrium volume. To suppress transient artifacts associated with the subsequent ensemble change, the equilibrated configuration was then propagated in the NVT ensemble for an additional 1 ns before the transport calculation was started.
+
+The production thermal transport calculation was carried out using the HNEMD method in the NVT ensemble. Temperature control was maintained using a Nose–Hoover chain thermostat, following the standard setup typically used for HNEMD transport simulations. A driving force of 2 × 10$^{-5}$ Å$^{-1}$ was applied separately along each transport direction. This field strength was chosen to keep the system within the linear response regime while still providing a stable signal-to-noise ratio in the induced heat current. For each direction, the HNEMD simulation was continued for 30 ns. The thermal conductivity reached a stable plateau in the final stage of the trajectory, indicating satisfactory convergence of the calculated response.
+
+The reported NEP thermal conductivity values were extracted from the converged portion of the HNEMD trajectories. Specifically, only the last 10% of each trajectory was used for the final statistical analysis. Five representative points were selected from this sampling interval, and the final value was taken from this converged regime. The corresponding uncertainty was reported as the standard deviation (std) of these five sampled values. Accordingly, the NEP error bars reflect the spread of the late-stage converged response rather than the uncertainty of an average over multiple independent runs.
+
+## S3. EMD/Green–Kubo calculations with the tabGAP potential
+
+For the tabGAP potential, the thermal conductivity was calculated in LAMMPS using equilibrium molecular dynamics combined with the Green–Kubo formalism. All simulations were performed at 300 K. The system was first thermalized in the NPT ensemble for 200 ps to ensure equilibration of both the atomic configuration and the simulation cell. The trajectory was then continued in the NVE ensemble for 20 ps in order to minimize artifacts associated with the transition from the thermostatted state to the microcanonical production regime.
+
+After equilibration, a 5 ns production trajectory was generated in the NVE ensemble for transport analysis. The microscopic heat current was constructed from the atomic kinetic energy, potential energy, and virial/stress contributions using `compute heat/flux`. The heat current autocorrelation function was sampled every 10 fs, and a correlation time window of 100 ps was used for the Green–Kubo integration. Integration of the autocorrelation function yielded the thermal conductivity components along the three Cartesian directions.
+
+To improve the statistical reliability of the tabGAP results, the EMD procedure was repeated multiple times independently. The thermal conductivity values reported for tabGAP therefore represent statistics over repeated calculations rather than a single long trajectory alone. The error bars for tabGAP were defined as the standard error of the mean (sem) obtained from these repeated simulations. In this sense, the tabGAP uncertainty quantifies the uncertainty of the averaged conductivity across multiple measurements.
+
+## S4. Statistical interpretation and comparison of the two datasets
+
+Although both NEP and tabGAP ultimately provide thermal conductivity tensor elements, the associated uncertainties are not defined in the same manner. For NEP, the uncertainty corresponds to the standard deviation of sampled values extracted from the final converged segment of a long HNEMD trajectory. For tabGAP, the uncertainty corresponds to the standard error of the mean obtained from multiple independent EMD calculations. The former primarily reflects the spread of the non-equilibrium steady-state response in the converged time window, whereas the latter reflects the uncertainty in the mean value estimated from repeated equilibrium measurements.
+
+This distinction is important when the two sets of results are compared directly. In particular, the NEP and tabGAP error bars should not be interpreted as identical statistical quantities, even though both serve as practical indicators of the stability and reliability of the reported thermal conductivity values.
+
+## S5. Summary of the workflow
+
+In summary, the transport workflow was selected according to the most suitable protocol for each potential and simulation engine. The NEP potential was evaluated in GPUMD using the HNEMD formalism to obtain the conductivity tensor from a driven steady-state heat current under linear response conditions. The tabGAP potential was evaluated in LAMMPS using the EMD/Green–Kubo formalism to extract the conductivity tensor from equilibrium heat-current fluctuations. Together, these two approaches constitute the methodological basis for the comparative analysis of the lattice thermal conductivity of β-Ga$_2$O$_3$ presented in this work.

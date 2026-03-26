@@ -98,7 +98,7 @@ def parse_tabgap(path):
 
 def parse_nep(path):
     k = np.zeros((3, 3), dtype=float)
-    sem = np.zeros((3, 3), dtype=float)
+    std = np.zeros((3, 3), dtype=float)
     with open(path, "r", encoding="utf-8") as f:
         lines = [line.strip() for line in f if line.strip()]
     for line in lines[1:]:
@@ -107,17 +107,17 @@ def parse_nep(path):
             continue
         comp = parts[0].replace("κ_{", "").replace("}", "")
         mean = float(parts[1])
-        sem_v = float(parts[-1])
+        std_v = float(parts[-1])
         i = "xyz".index(comp[0])
         j = "xyz".index(comp[1])
         k[i, j] = mean
-        sem[i, j] = sem_v
+        std[i, j] = std_v
     k_sym = 0.5 * (k + k.T)
-    sem_sym = np.zeros((3, 3), dtype=float)
+    std_sym = np.zeros((3, 3), dtype=float)
     for i in range(3):
         for j in range(3):
-            sem_sym[i, j] = 0.5 * np.sqrt(sem[i, j] ** 2 + sem[j, i] ** 2)
-    return k_sym, sem_sym
+            std_sym[i, j] = 0.5 * np.sqrt(std[i, j] ** 2 + std[j, i] ** 2)
+    return k_sym, std_sym
 
 
 def project_kappa(k_tensor, sem_tensor, direction_hkl):
@@ -205,10 +205,10 @@ def main():
     out_path = root / output_file
 
     tabgap_k, tabgap_sem_tensor = parse_tabgap(tabgap_path)
-    nep_k, nep_sem_tensor = parse_nep(nep_path)
+    nep_k, nep_std_tensor = parse_nep(nep_path)
 
     tabgap_values = collect_model_values(tabgap_k, tabgap_sem_tensor)
-    nep_values = collect_model_values(nep_k, nep_sem_tensor)
+    nep_values = collect_model_values(nep_k, nep_std_tensor)
 
     print_conversion_report(tabgap_values, nep_values)
     plot_grouped_bar(tabgap_values, nep_values, out_path)
